@@ -22,14 +22,13 @@ Dependencies :
 
 ## Basic use
 
-You could first create the acceptance model
+You could first create the acceptance (or background) model
 
 ```python
 from gammapy.maps import MapAxis
 from gammapy.data import DataStore
 from regions import CircleSkyRegion
 import astropy.units as u
-import numpy as np
 from astropy.coordinates import SkyCoord
 from baccmod import RadialAcceptanceMapCreator
 
@@ -96,6 +95,7 @@ data_store.hdu_table
 
 **The observations should contain the telescope position in order to have the algorithm working.**
 If the information is missing in the DL3, you could either add it or it possible to add it directly to the observation as shown in the example below.
+This snippet of code may require some adaptation depending on the version of gammapy you are using.
 ```python
 from astropy.coordinates import EarthLocation
 
