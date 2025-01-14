@@ -18,7 +18,7 @@ setup(
     install_requires=[
         'gammapy>=1.1,<1.4',
         'numpy<2.3',
-        'scipy<1.15',
+        'scipy<1.16',
         'iminuit>=2.0,<3.0',
         'astropy>=4.0,<8.0',
         'regions>=0.7,<0.11'
