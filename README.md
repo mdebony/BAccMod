@@ -90,6 +90,69 @@ data_store.hdu_table
 > [!WARNING]  
 > Due to some change in gammapy 1.3, it's strongly suggested to use only use models that have been created with the same version of gammapy used
 
+## Logging setup
+
+The module uses `logging` to output various information to the user. Standard `logging` functionalities are supported.
+
+In addition, some helper functions are implemented and BAccMod uses a logging level **MOREINFO** with value 15 between the `logging` INFO and DEBUG levels.
+
+Logging functions can be used as follow :
+
+```python
+from baccmod.logging import MOREINFO, set_log_level
+
+set_log_level(level= MOREINFO, # Supports both int and string representation, e.g.
+                               # 15, MOREINFO and 'MOREINFO' would be equivalent
+              module= 'baccmod' # default 'baccmod', 'baccmod.' is automatically 
+                                # added if missing so users can provide a 
+                                # submodule directly
+              )
+
+# Example usage : 
+set_log_level(logging.INFO)
+set_log_level('WARNING')
+set_log_level(20, 'grid3d_acceptance_map_creator')
+# equivalent to
+set_log_level(level=logging.INFO,
+              module='baccmod.grid3d_acceptance_map_creator')
+
+```
+
+The `set_log_level` function has some simple usages show below but takes a number of optionnal parameters for more advance configuration. Its signature is :
+```python
+setup_logging_output(output_file=None, use_terminal=True,
+                     handlers=None, module='baccmod',
+                     fmode='w', term_level=logging.NOTSET,
+                     log_format='%(levelname)s:%(name)s: %(message)s')
+```
+
+Some usages :
+
+```python
+from baccmod.logging import set_log_level, setup_logging_output
+
+# Setup the output of logging to the provided file. Keep output in terminal.
+setup_logging_output(output_file='/path/to/log_file.log') 
+
+# Setup the output of logging to the provided file. No output in terminal.
+setup_logging_output(output_file='/path/to/log_file.log', use_terminal=False)
+
+# Setup a file output with a global log level of INFO,
+# but only output WARNING and above levels to the terminal
+set_log_level('INFO')
+setup_logging_output(output_file='/path/to/log_file.log',
+                     use_terminal=True,
+                     term_level='WARNING')
+```
+`module` can be used to define the logging for a submodule only.
+
+`fmode` defines the writing strategy for the log file (default overwrites).
+
+`log_format` can be used to change the format of the messages.
+
+`handlers` (advanced users) allow to directly provide a list of Handlers instead of the one created by the `output_file` and `use_terminal` options.
+
+
 
 ## Telescope position
 
