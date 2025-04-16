@@ -25,6 +25,7 @@ from regions import SkyRegion
 
 from .base_acceptance_map_creator import BaseAcceptanceMapCreator
 from .modeling import FIT_FUNCTION, log_factorial, log_poisson
+from baccmod.logging import MOREINFO
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
         self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
 
+        self.sq_rel_residuals = {'mean': [], 'std': []}
+
         # Initiate upper instance
         super().__init__(energy_axis=energy_axis,
                          max_offset=max_offset,
@@ -191,7 +194,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             return -np.sum(
                 log_poisson(count_map, fnc(x, y, *args) * exp_map / exp_map_total, log_factorial_count_map))
 
-        logger.info(f"seeds :\n{seeds}")
+        logger.log(MOREINFO, f"seeds :\n{seeds}")
         m = Minuit(f,
                    name=seeds.keys(),
                    *seeds.values())
@@ -202,14 +205,17 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 m.limits[key] = bound
         m.errordef = Minuit.LIKELIHOOD
         m.simplex().migrad()
-        if logger.level <= logging.INFO:
+        if not m.valid : logger.warning(f"Fit invalid in energy/Zd bin.")
+        if logger.getEffectiveLevel() <= logging.INFO:
             func = fnc(x, y, **m.values.to_dict()) * exp_map / exp_map_total
             func[exp_map == 0] = 1
             rel_residuals = 100 * (count_map - func) / func
-            logger.info(f"Fit valid : {m.valid}\n"
-                        f"Results ({fnc.__name__}) :\n{m.values.to_dict()}")
-            logger.info("Average relative residuals : %.1f %%," % (np.mean(rel_residuals)) +
+            sq_rel_residuals =  (count_map - func) / np.sqrt(func)
+            logger.log(MOREINFO, f"Results ({fnc.__name__}) :\n{m.values.to_dict()}")
+            logger.debug("Average relative residuals : %.1f %%," % (np.mean(rel_residuals)) +
                         "Std = %.2f %%" % (np.std(rel_residuals)) + "\n")
+            self.sq_rel_residuals['mean'].append(np.mean(sq_rel_residuals))
+            self.sq_rel_residuals['std'].append(np.std(sq_rel_residuals))
 
         return fnc(x, y, **m.values.to_dict())
 
@@ -252,12 +258,17 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         elif self.method == 'fit':
             logger.info(f"Performing the background fit using {self.fit_fnc}.")
             corrected_counts = np.empty(count_background.shape)
+            self.sq_rel_residuals = {'mean': [], 'std': []}
             for e in range(count_background.shape[0]):
                 logger.info(f"Energy bin : [{self.energy_axis.edges[e]:.2f},{self.energy_axis.edges[e + 1]:.2f}]")
                 corrected_counts[e] = self.fit_background(count_background[e].astype(int),
                                                           exp_map_background_total_downsample.data[e],
                                                           exp_map_background_downsample.data[e],
                                                           )
+
+            logger.info("Average event counts diff/sqrt(fit) for each energies : "
+                        f"{np.round(self.sq_rel_residuals['mean'], 2)}\n" +
+                        f"Std = {np.round(self.sq_rel_residuals['std'], 2)}")
         else:
             raise NotImplementedError(f"Requested method '{self.method}' is not valid.")
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
