@@ -194,7 +194,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             return -np.sum(
                 log_poisson(count_map, fnc(x, y, *args) * exp_map / exp_map_total, log_factorial_count_map))
 
-        logger.log(MOREINFO, f"seeds :\n{seeds}")
+        logger.debug( f"seeds :\n{seeds}")
         m = Minuit(f,
                    name=seeds.keys(),
                    *seeds.values())
