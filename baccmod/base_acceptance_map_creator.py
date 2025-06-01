@@ -633,9 +633,6 @@ class BaseAcceptanceMapCreator(ABC):
             binned_observations[np.digitize(np.cos(obs.get_pointing_altaz(obs.tmid).zen), cos_zenith_bin) - 1].append(
                 obs)
 
-        # Compute the model for each bin
-        binned_model = [self.create_acceptance_map(binned_obs) for binned_obs in binned_observations]
-
         # Determine the center of the bin (weighted as function of the livetime of each observation)
         bin_center = []
         for i in range(len(binned_observations)):
@@ -663,6 +660,12 @@ class BaseAcceptanceMapCreator(ABC):
                     f"{wobble} observation per bin: {list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin, weights=1 * wobble_observations_bool_arr[i])[0])}")
                 logger.info(
                     f"{wobble} livetime per bin: {list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin, weights=livetime_observations_and_wobble[i])[0].astype(int))}")
+
+        # Compute the model for each bin
+        binned_model = []
+        for i, binned_obs in enumerate(binned_observations):
+            logger.info(f"Creating model for the bin at cos zenith = {np.round(bin_center[i], 2)}°")
+            binned_model.append(self.create_acceptance_map(binned_obs))
 
         # Create the dict for output of the function
         collection_binned_model = BackgroundCollectionZenith()
