@@ -69,7 +69,7 @@ class BaseAcceptanceMapCreator(ABC):
         max_offset : astropy.units.Quantity
             The offset corresponding to the edge of the model
         spatial_resolution : astropy.units.Quantity
-            The spatial resolution
+            The spatial resolution of the finely binned map used for computation
         exclude_regions : list of regions.SkyRegion, optional
             Regions with known or putative gamma-ray emission, will be excluded from the calculation of the acceptance map
         cos_zenith_binning_method : str, optional
