@@ -27,6 +27,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  energy_axis: MapAxis,
                  offset_axis: MapAxis,
                  oversample_map: int = 10,
+                 energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
@@ -53,6 +54,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The offset axis for the acceptance model
         oversample_map : int, optional
             Oversample in number of pixel of the spatial axis used for the calculation
+        energy_axis_computation : gammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
         cos_zenith_binning_method : str, optional
@@ -101,6 +104,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         super().__init__(energy_axis=energy_axis,
                          max_offset=max_offset,
                          spatial_resolution=spatial_resolution,
+                         energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
                          cos_zenith_binning_method=cos_zenith_binning_method,
                          cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
@@ -132,7 +136,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         count_map_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
             observations)
 
-        data_background = np.zeros((self.energy_axis.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
+        data_background = np.zeros((self.energy_axis_computation.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
         for i in range(self.offset_axis.nbin):
             if np.isclose(0. * u.deg, self.offset_axis.edges[i]):
                 selection_region = CircleSkyRegion(center=self.center_map, radius=self.offset_axis.edges[i + 1])
@@ -141,22 +145,22 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                           inner_radius=self.offset_axis.edges[i],
                                                           outer_radius=self.offset_axis.edges[i + 1])
             selection_map = self.geom.to_image().region_mask([selection_region])
-            for j in range(self.energy_axis.nbin):
+            for j in range(self.energy_axis_computation.nbin):
                 value = u.dimensionless_unscaled * np.sum(count_map_background.data[j, :, :] * selection_map)
                 value *= np.sum(exp_map_background_total.data[j, :, :] * selection_map) / np.sum(
                     exp_map_background.data[j, :, :] * selection_map)
 
-                value /= (self.energy_axis.edges[j + 1] - self.energy_axis.edges[j])
+                value /= (self.energy_axis_computation.edges[j + 1] - self.energy_axis_computation.edges[j])
                 value /= 2. * np.pi * (
                             np.cos(self.offset_axis.edges[i]) - np.cos(self.offset_axis.edges[i + 1])) * u.steradian
                 value /= livetime
                 data_background[j, i] = value
 
-        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=data_background)
+        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, self.energy_axis_computation))
 
         return acceptance_map
 
-    def _create_base_computation_map(self, observations: Observation) -> Tuple[WcsNDMap, WcsNDMap, WcsNDMap, u.Quantity]:
+    def _create_base_computation_map(self, observations: Observations) -> Tuple[WcsNDMap, WcsNDMap, WcsNDMap, u.Quantity]:
         """
         From a list of observations return a stacked finely binned counts and exposure map in camera frame to compute a
         model
@@ -184,7 +188,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         for obs in observations:
             geom = WcsGeom.create(skydir=obs.pointing.fixed_icrs, npix=(self.n_bins_map, self.n_bins_map),
-                                  binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis])
+                                  binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
             count_map_obs, exclusion_mask = self._create_map(obs, geom, self.exclude_regions, add_bkg=False)
 
             exp_map_obs = MapDataset.create(geom=count_map_obs.geoms['geom'])
