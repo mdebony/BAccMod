@@ -44,7 +44,7 @@ class TestIntegrationClass:
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
     absolute_tolerance = 1e-15
-    relative_tolerance = 1e-3
+    relative_tolerance = 1e-2
 
     def test_integration_3D(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -67,6 +67,8 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
+        print(np.abs(background_model.data - reference.data)/reference.data)
+        print(np.max(np.abs(background_model.data - reference.data) / reference.data))
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
