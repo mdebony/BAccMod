@@ -23,6 +23,11 @@ setup(
         'astropy>=4.0,<8.0',
         'regions>=0.7,<0.11'
     ],
+    package_data={
+            'baccmod': [
+                'resources/*',
+            ],
+        },
     author='Mathieu de Bony de Lavergne, Gabriel Emery, Marie-Sophie Carrasco',
     author_email='debony@cppm.in2p3.fr'
 )
