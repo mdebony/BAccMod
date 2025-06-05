@@ -70,6 +70,7 @@ class TestIntegrationClass:
         print(np.abs(background_model.data - reference.data)/reference.data)
         print(np.nanmax(np.abs(background_model.data - reference.data) / reference.data))
         print(np.sum((np.abs(background_model.data - reference.data) / reference.data) > 1e-3))
+        print((np.abs(background_model.data - reference.data) / reference.data)[3, :, :])
         for i in range(background_model.data.shape[0]):
             print(np.sum((np.abs(background_model.data[i, : ,:] - reference.data[i, : ,:]) / reference.data[i, : ,:]) > 1e-3))
         assert np.all(np.isclose(background_model.data, reference.data,
