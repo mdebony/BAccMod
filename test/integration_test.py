@@ -94,7 +94,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_binned.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
 
@@ -110,7 +110,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
 
@@ -128,7 +128,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_run_splitting_mini_irf.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
 
@@ -143,6 +143,6 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_run_normalisation.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
