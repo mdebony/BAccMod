@@ -43,6 +43,9 @@ class TestIntegrationClass:
     energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=5, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
+    absolute_tolerance = 1e-15
+    relative_tolerance = 1e-3
+
     def test_integration_3D(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                offset_axis=self.offset_axis,
@@ -51,7 +54,9 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D.fits')
-        assert np.all(np.isclose(reference.data, background_model.data))
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -62,7 +67,9 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
-        assert np.all(np.isclose(reference.data, background_model.data))
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -72,7 +79,9 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D.fits')
-        assert np.all(np.isclose(reference.data, background_model.data))
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
 
     def test_integration_zenith_binned_model(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -85,7 +94,9 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_binned.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data))
+            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_model(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -99,7 +110,9 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data))
+            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_model_mini_irf_and_run_splitting(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -115,7 +128,9 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_run_splitting_mini_irf.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data))
+            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
 
     def test_integration_norm_per_run(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -128,4 +143,6 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_run_normalisation.fits')
-            assert np.all(np.isclose(reference.data, background_model[id_obs].data))
+            assert np.all(np.isclose(reference.data, background_model[id_obs].data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
