@@ -69,6 +69,7 @@ class TestIntegrationClass:
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
         print(np.abs(background_model.data - reference.data)/reference.data)
         print(np.nanmax(np.abs(background_model.data - reference.data) / reference.data))
+        print(np.sum((np.abs(background_model.data - reference.data) / reference.data) > 1e-3))
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
