@@ -20,12 +20,9 @@ from gammapy.data import Observations
 from gammapy.datasets import MapDataset
 from gammapy.irf import FoVAlignment, Background3D
 from gammapy.maps import WcsNDMap, Map, MapAxis, RegionGeom
-from iminuit import Minuit
 from regions import SkyRegion
 
 from .base_acceptance_map_creator import BaseAcceptanceMapCreator
-from .modeling import FIT_FUNCTION, log_factorial, log_poisson
-from baccmod.logging import MOREINFO
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +35,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  oversample_map: int = 10,
                  energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
-                 method='stack',
-                 fit_fnc='gaussian2d',
-                 fit_seeds=None,
-                 fit_bounds=None,
                  **kwargs) -> None:
         """
         Create the class for calculating 3D grid acceptance model
@@ -58,15 +51,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
-        method : str, optional
-            Decide if the acceptance is a direct event stacking or a fitted model. 'stack' or 'fit'
-        fit_fnc: str or function
-            Two dimensional function to be fitted. Some built-in functions are provided and selected by passing a string
-            The function needs to have a size parameter (integral charge) as first parameter.
-        fit_seeds: dict, can optionally be None if using a built-in function
-            Seeds of the parameters of the function to fit. Normalisation parameter is ignored if given.
-        fit_bounds: dict, can optionally be None if using a built-in function
-            Bounds of the parameters of the function to fit. Normalisation parameter is ignored if given.
         **kwargs
             Additional arguments for controlling background creation, see documentation of BaseAcceptanceMapCreator for more details
         """
@@ -86,6 +70,17 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             np.abs(self.offset_axis.edges[1:] - self.offset_axis.edges[:-1])) / self.oversample_map
         max_offset = np.max(self.offset_axis.edges)
 
+        self.method = method
+        self.fit_fnc = fit_fnc
+        self.fit_seeds = fit_seeds
+        self.fit_bounds = fit_bounds
+
+        offset_edges = offset_axis.edges
+        offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
+        self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
+
+        self.sq_rel_residuals = {'mean': [], 'std': []}
+
         # Initiate upper instance
         super().__init__(energy_axis=energy_axis,
                          max_offset=max_offset,
@@ -93,77 +88,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
                          **kwargs)
-
-        self.method = method
-        self.fit_fnc = fit_fnc
-        self.fit_seeds = fit_seeds
-        self.fit_bounds = fit_bounds
-
-        self.sq_rel_residuals = {'mean': [], 'std': []}
-
-    def fit_background(self, count_map, exp_map_total, exp_map):
-        centers = self.offset_axis.center.to_value(u.deg)
-        centers = np.concatenate((-np.flip(centers), centers), axis=None)
-        raw_seeds = {}
-        bounds = {}
-        if type(self.fit_fnc) == str:
-            try:
-                fnc = FIT_FUNCTION[self.fit_fnc]
-            except KeyError:
-                logger.error(f"Invalid built-in fit_fnc. Use {FIT_FUNCTION.keys()} or a custom function.")
-                raise
-            raw_seeds = fnc.default_seeds.copy()
-            bounds = fnc.default_bounds.copy()
-        else:
-            fnc = self.fit_fnc
-        if self.fit_seeds is not None:
-            raw_seeds.update(self.fit_seeds)
-        if self.fit_bounds is not None:
-            bounds.update(self.fit_bounds)
-
-        mask = exp_map > 0  # Handles fully overlapping exclusion regions in the 'size' seed computation
-        # Seeds the charge normalisation to the observed counts corrected for exclusion region reduction to exposure
-        raw_seeds['size'] = np.sum(count_map[mask] * exp_map_total[mask] / exp_map[mask]) / np.mean(mask)
-        bounds['size'] = (raw_seeds['size'] * 0.1, raw_seeds['size'] * 10)
-
-        # reorder seeds to fnc parameter order
-        param_fnc = list(fnc.__code__.co_varnames[:fnc.__code__.co_argcount])
-        param_fnc.remove('x')
-        param_fnc.remove('y')
-        seeds = {key: raw_seeds[key] for key in param_fnc}
-
-        x, y = np.meshgrid(centers, centers)
-
-        log_factorial_count_map = log_factorial(count_map)
-
-        def f(*args):
-            return -np.sum(
-                log_poisson(count_map, fnc(x, y, *args) * exp_map / exp_map_total, log_factorial_count_map))
-
-        logger.debug( f"seeds :\n{seeds}")
-        m = Minuit(f,
-                   name=seeds.keys(),
-                   *seeds.values())
-        for key, bound in bounds.items():
-            if bound is None:
-                m.fixed[key] = True
-            else:
-                m.limits[key] = bound
-        m.errordef = Minuit.LIKELIHOOD
-        m.simplex().migrad()
-        if not m.valid : logger.warning(f"Fit invalid in energy/Zd bin.")
-        if logger.getEffectiveLevel() <= logging.INFO:
-            func = fnc(x, y, **m.values.to_dict()) * exp_map / exp_map_total
-            func[exp_map == 0] = 1
-            rel_residuals = 100 * (count_map - func) / func
-            sq_rel_residuals =  (count_map - func) / np.sqrt(func)
-            logger.log(MOREINFO, f"Results ({fnc.__name__}) :\n{m.values.to_dict()}")
-            logger.debug("Average relative residuals : %.1f %%," % (np.mean(rel_residuals)) +
-                        "Std = %.2f %%" % (np.std(rel_residuals)) + "\n")
-            self.sq_rel_residuals['mean'].append(np.mean(sq_rel_residuals))
-            self.sq_rel_residuals['std'].append(np.std(sq_rel_residuals))
-
-        return fnc(x, y, **m.values.to_dict())
 
     def create_model(self, observations: Observations) -> Background3D:
         """
@@ -183,7 +107,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation = self._create_base_computation_map(
             observations)
 
-        # Downsample map to bkg model resolution
+        # Downsample map to background model resolution
         exp_map_background_downsample = exp_map_background.downsample(self.oversample_map, preserve_counts=True)
         exp_map_background_total_downsample = exp_map_background_total.downsample(self.oversample_map,
                                                                                   preserve_counts=True)
@@ -197,6 +121,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
 
         # Compute acceptance_map
+<<<<<<< HEAD
 
         if self.method == 'stack':
             corrected_counts = count_background * (exp_map_background_total_downsample.data /
@@ -220,6 +145,12 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
         data_background = corrected_counts / solid_angle[np.newaxis, :, :] / energy_axis_computation.bin_width[:, np.newaxis,
                                                                              np.newaxis] / livetime
+=======
+        corrected_counts = count_background * (exp_map_background_total_downsample.data /
+                                               exp_map_background_downsample.data)
+        solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
+        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis.bin_width[:, np.newaxis, np.newaxis] / livetime
+>>>>>>> e887564 (First evolution of architecture)
 
         data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
 

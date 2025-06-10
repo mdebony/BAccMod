@@ -9,7 +9,7 @@ from gammapy.irf import Background3D, Background2D
 from gammapy.maps import MapAxis
 from regions import CircleSkyRegion
 
-from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator
+from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator, SpatialFitAcceptanceMapCreator
 
 import gammapy
 gammapy_version = gammapy.__version__
@@ -192,6 +192,14 @@ class TestIntegrationClass:
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
+
+    def test_integration_spatial_fit(self):
+        bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                                   offset_axis=self.offset_axis,
+                                                   oversample_map=5,
+                                                   exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
 
     def test_integration_zenith_binned_model(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
