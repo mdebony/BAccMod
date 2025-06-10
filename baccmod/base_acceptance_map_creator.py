@@ -875,7 +875,7 @@ class BaseAcceptanceMapCreator(ABC):
             Parameters
             ----------
             data_bkg : u.Quantity
-                The data cube of the background model. The energy axis need to be the first one.
+                The data cube of the background model. The energy axis needs to be the first one.
             energy_axis_computation : gammapy.maps.geom.MapAxis
                 The energy axis used for computation
 
