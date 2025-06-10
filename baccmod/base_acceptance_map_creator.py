@@ -885,6 +885,13 @@ class BaseAcceptanceMapCreator(ABC):
                 The background data cube interpolated to the energy axis of the output model
         """
 
+        # Return the provided bkg data if energy axis are matching
+        if len(energy_axis_computation.edges) == len(self.energy_axis.edges) and np.all(energy_axis_computation.edges == self.energy_axis.edges):
+            logger.warning('Identical computation energy axis and model energy axis, no interpolation required')
+            return data_bkg
+
+        logger.info('Interpolating from computation energy axis to model energy axis')
+
         unit = data_bkg.unit
         raw_log_data = np.log10(data_bkg.value+100.*np.finfo(np.float64).tiny)
         mask_zero_input = np.isclose(0., data_bkg.value, atol=100.*np.finfo(np.float64).tiny)
