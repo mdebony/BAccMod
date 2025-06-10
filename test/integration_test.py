@@ -1,6 +1,7 @@
 import os
 
 import astropy.units as u
+import numpy as np
 from astropy.coordinates import EarthLocation, SkyCoord
 from gammapy.data import DataStore
 from gammapy.irf import Background3D, Background2D
@@ -36,7 +37,8 @@ class TestIntegrationClass:
             obs_collection_pks_2155[i].obs_info['GEOALT'] = 1800
         obs_collection_pks_2155[i]._location = EarthLocation.from_geodetic(lon=16.50004902672975*u.deg, lat=-23.271584051253615*u.deg, height=1800.*u.m)
 
-    energy_axis = MapAxis.from_energy_bounds(50.*u.GeV, 1.*u.TeV, nbin=5, per_decade=True, name='energy')
+    energy_axis = MapAxis.from_energy_bounds(50.*u.GeV, 5.*u.TeV, nbin=10, per_decade=True, name='energy')
+    energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.05, 0.5, 6)) + list(np.geomspace(0.5, 5, 3)[1:])) * u.TeV, name='energy')
     offset_axis = MapAxis.from_bounds(0.*u.deg, 2.*u.deg, nbin=6, name='offset')
 
     def test_integration_3D(self):
@@ -47,8 +49,45 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
 
+    def test_integration_spatial_fit(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               method='fit')
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background2D
+
+    def test_integration_3D_unregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
+    def test_integration_spatial_fit_unregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               method='fit')
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
+    def test_integration_2D_unregular_computation_axis(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
