@@ -70,11 +70,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             np.abs(self.offset_axis.edges[1:] - self.offset_axis.edges[:-1])) / self.oversample_map
         max_offset = np.max(self.offset_axis.edges)
 
-        self.method = method
-        self.fit_fnc = fit_fnc
-        self.fit_seeds = fit_seeds
-        self.fit_bounds = fit_bounds
-
         offset_edges = offset_axis.edges
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
         self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
@@ -121,36 +116,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
 
         # Compute acceptance_map
-<<<<<<< HEAD
-
-        if self.method == 'stack':
-            corrected_counts = count_background * (exp_map_background_total_downsample.data /
-                                                   exp_map_background_downsample.data)
-        elif self.method == 'fit':
-            logger.info(f"Performing the background fit using {self.fit_fnc}.")
-            corrected_counts = np.empty(count_background.shape)
-            self.sq_rel_residuals = {'mean': [], 'std': []}
-            for e in range(count_background.shape[0]):
-                logger.info(f"Energy bin : [{energy_axis_computation.edges[e]:.2f},{energy_axis_computation.edges[e + 1]:.2f}]")
-                corrected_counts[e] = self.fit_background(count_background[e].astype(int),
-                                                          exp_map_background_total_downsample.data[e],
-                                                          exp_map_background_downsample.data[e],
-                                                          )
-
-            logger.info("Average event counts diff/sqrt(fit) for each energies : "
-                        f"{np.round(self.sq_rel_residuals['mean'], 2)}\n" +
-                        f"Std = {np.round(self.sq_rel_residuals['std'], 2)}")
-        else:
-            raise NotImplementedError(f"Requested method '{self.method}' is not valid.")
-        solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
-        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / energy_axis_computation.bin_width[:, np.newaxis,
-                                                                             np.newaxis] / livetime
-=======
         corrected_counts = count_background * (exp_map_background_total_downsample.data /
                                                exp_map_background_downsample.data)
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
         data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis.bin_width[:, np.newaxis, np.newaxis] / livetime
->>>>>>> e887564 (First evolution of architecture)
 
         data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
 
