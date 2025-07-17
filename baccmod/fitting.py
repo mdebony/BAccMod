@@ -1,6 +1,20 @@
+# -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
+# Filename: fitting.py
+# Purpose: Implement an astropy fitter that used poisson statistics likelihood and iminuit
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+# ---------------------------------------------------------------------
+from typing import List
+
 import numpy as np
 from astropy.modeling.fitting import Fitter
+from astropy.modeling import Model
 from iminuit import Minuit
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PoissonFitter(Fitter):
     supported_constraints = ['fixed', 'bounds']
@@ -9,12 +23,25 @@ class PoissonFitter(Fitter):
     def __init__(self):
         super().__init__()
 
-    def __call__(self, model, *coords, data, maxiter=None):
+    def __call__(self, model: Model, *coords: List[np.array], data: np.array, maxiter: int = None):
         """
-        model : any astropy.modeling.Model whose call signature is
-                model(*coords) → intrinsic rate array
-        coords: N arrays of shape = data.shape giving the N coordinate grids
-        data : integer counts array
+        Fit the model to the data following poisson likelihood statistics and using iminuit
+
+        Parameters
+        ----------
+            model : astropy.modeling.Model
+                model to use for the fitting
+            coords: list of np.array
+                N arrays of shape = data.shape giving the N coordinate grids
+            data : np.array
+                Integer counts array of N dimension
+            maxiter : int
+                maximum number of iteration for fitting, as the fitting is performed in two steps, could be the double of this value in practice
+
+        Returns
+        -------
+            model : astropy.modeling.Model
+                the fitted model
         """
         model_copy = model.copy()
 
@@ -56,6 +83,9 @@ class PoissonFitter(Fitter):
         # 7) minimize
         m.simplex(ncall=maxiter).migrad(ncall=maxiter)
 
+        if not m.valid:
+            logger.warning("Background model fit invalid for this bin.")
+
         # 8) write best‐fit back into the model
         for name, val in m.values.to_dict().items():
             setattr(model_copy, name, val)
@@ -65,15 +95,15 @@ class PoissonFitter(Fitter):
     @staticmethod
     def _log_factorial(x):
         """
-            Returns the log of the factorial of elements of `count_map` while computing each value only once.
-            Parameters
-            ----------
-            x: Array-like of integers
-                Input for which we want the factorial of all elements
-            Returns
-            -------
-                The factorial of x in log scale
-            """
+        Returns the log of the factorial of elements of `count_map` while computing each value only once.
+        Parameters
+        ----------
+        x: Array-like of integers
+            Input for which we want the factorial of all elements
+        Returns
+        -------
+            The factorial of x in log scale
+        """
         max_x = x.max()
         all_int = np.arange(0, max_x + 1)
         all_int[0] = 1
