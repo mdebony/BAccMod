@@ -6,24 +6,27 @@
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 # ---------------------------------------------------------------------
-from typing import List
-
 import numpy as np
-from astropy.modeling.fitting import Fitter
-from astropy.modeling import Model
-from iminuit import Minuit
 import logging
+from typing import List
+from astropy.modeling import Model
+from astropy.modeling.fitting import Fitter
+from iminuit import Minuit
 
 logger = logging.getLogger(__name__)
 
 class PoissonFitter(Fitter):
-    supported_constraints = ['fixed', 'bounds']
+    supported_constraints = ['fixed', 'bounds', 'tied']
     supports_uncertainties = False
 
     def __init__(self):
         super().__init__()
 
-    def __call__(self, model: Model, *coords: List[np.array], data: np.array, maxiter: int = None):
+    def __call__(self,
+                 model: Model,
+                 *coords: List[np.ndarray],
+                 data: np.ndarray,
+                 maxiter: int = 1000) -> Model:
         """
         Fit the model to the data following poisson likelihood statistics and using iminuit
 
@@ -43,57 +46,69 @@ class PoissonFitter(Fitter):
             model : astropy.modeling.Model
                 the fitted model
         """
+        # work on a copy
         model_copy = model.copy()
 
-        # 1) flatten each coordinate array
-        coord1 = [c.ravel() for c in coords]
-        data1 = data.ravel().astype(int)
+        # flatten coords & data
+        flat_coords = [c.ravel() for c in coords]
+        flat_data   = data.ravel().astype(int)
 
-        # 2) precompute log-factorials
-        log_fact = self._log_factorial(data1)
+        # precompute log‑factorial
+        log_fact = self._log_factorial(flat_data)
 
-        # 3) gather parameter names, initial guesses, bounds, fixed flags
-        pnames = list(model_copy.param_names)
-        seeds  = {p: getattr(model_copy, p).value for p in pnames}
-        bounds = {p: model_copy.bounds.get(p, (None, None)) for p in pnames}
-        fixed  = {p: model_copy.fixed.get(p, False)         for p in pnames}
+        # gather constraint info
+        tied = model_copy.tied or {}
 
-        # 4) define negative log‐likelihood
-        def neg_logL(**pars):
-            # update model parameters in‐place
+        # build list of free parameters
+        all_params = list(model_copy.param_names)
+        free_params = [p for p in all_params if p not in tied]
+
+        # initial seeds, bounds, fixed flags
+        seeds  = {p: getattr(model_copy, p).value for p in free_params}
+        bounds = {p: model_copy.bounds.get(p, (None, None)) for p in free_params}
+        fixed  = {p: model_copy.fixed.get(p, False)         for p in free_params}
+
+        # helper to apply tied relations
+        def apply_params_and_tied(pars):
+            # update free params
             for name, val in pars.items():
                 setattr(model_copy, name, val)
-            # expected counts = intrinsic_rate * (e_masked/e_tot)
-            mu = model_copy(*coord1)
-            mu = np.clip(mu, 1e-12, None)
-            return -np.sum(self._log_poisson(mu, data1, log_fact))
+            # update tied params
+            for name, rule in tied.items():
+                val = rule(model_copy) if callable(rule) else eval(rule, {}, {p: getattr(model, p).value for p in all_params})
+                setattr(model_copy, name, val)
 
-        # 5) set up Minuit
-        m = Minuit(neg_logL, name=pnames, **seeds)
+        # negative log‑likelihood
+        def neg_logL(**pars):
+            apply_params_and_tied(pars)
+            mu = model_copy(*flat_coords)
+            return -np.sum(self._log_poisson(mu, flat_data, log_fact))
+
+        # set up Minuit
+        m = Minuit(neg_logL, name=free_params, **seeds)
         m.errordef = Minuit.LIKELIHOOD
 
-        # 6) apply bounds & fixed flags
-        for p in pnames:
+        # apply bounds & fixed
+        for p in free_params:
             lo, hi = bounds[p]
             if fixed[p]:
                 m.fixed[p] = True
             elif lo is not None or hi is not None:
                 m.limits[p] = (lo, hi)
 
-        # 7) minimize
+        # minimize
         m.simplex(ncall=maxiter).migrad(ncall=maxiter)
-
         if not m.valid:
-            logger.warning("Background model fit invalid for this bin.")
+            logger.warning("PoissonFitter: fit may not have converged.")
 
-        # 8) write best‐fit back into the model
-        for name, val in m.values.to_dict().items():
-            setattr(model_copy, name, val)
+        # write best‑fit back to model (free + tied)
+        best = m.values.to_dict()
+        apply_params_and_tied(best)
 
         return model_copy
 
     @staticmethod
-    def _log_factorial(x):
+    def _log_factorial(x: np.ndarray) -> np.ndarray:
         """
         Returns the log of the factorial of elements of `count_map` while computing each value only once.
         Parameters
@@ -113,5 +128,5 @@ class PoissonFitter(Fitter):
         return log_factorial_x
 
     @staticmethod
-    def _log_poisson(mu, x, log_factorial_x):
+    def _log_poisson(mu: np.ndarray, x: np.ndarray, log_factorial_x: np.ndarray) -> np.ndarray:
         return -mu + x * np.log(mu) - log_factorial_x
