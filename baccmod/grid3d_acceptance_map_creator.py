@@ -113,8 +113,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
         self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
 
-        self.sq_rel_residuals = {'mean': [], 'std': []}
-
         # Initiate upper instance
         super().__init__(energy_axis=energy_axis,
                          max_offset=max_offset,
