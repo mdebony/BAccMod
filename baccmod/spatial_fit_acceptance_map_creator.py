@@ -5,10 +5,11 @@
 # ---------------------------------------------------------------------
 
 import logging
-import numpy as np
 
 import astropy.units as u
 import gammapy
+import numpy as np
+from astropy.modeling.functional_models import Gaussian2D
 from gammapy.irf import Background3D, FoVAlignment
 from gammapy.maps import MapAxis
 
@@ -42,9 +43,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         activate_interpolation_cleaning: bool = False,
         interpolation_cleaning_energy_relative_threshold: float = 1e-4,
         interpolation_cleaning_spatial_relative_threshold: float = 1e-2,
-        fit_fnc='gaussian2d',
-        fit_seeds=None,
-        fit_bounds=None,
+        model_to_fit = Gaussian2D()
     ) -> None:
         """
         Spatial “fit” acceptance creator: splits each energy slice, calls BaseFitAcceptanceMapCreator.fit_background(),
@@ -72,10 +71,9 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
             activate_interpolation_cleaning=activate_interpolation_cleaning,
             interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
             interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold,
-            fit_fnc=fit_fnc,
-            fit_seeds=fit_seeds,
-            fit_bounds=fit_bounds,
         )
+
+        self.model_to_fit = model_to_fit
 
     def create_acceptance_map(self, observations) -> Background3D:
         """
@@ -102,12 +100,19 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         corrected_counts = np.empty(count_background.shape)
         self.sq_rel_residuals = {"mean": [], "std": []}
 
+        # 2D coordinates system for the fit
+        centers = self.offset_axis.center.to_value(u.deg)
+        centers = np.concatenate((-np.flip(centers), centers), axis=None)
+        x, y = np.meshgrid(centers, centers)
+
         for e in range(n_energy):
             logger.info(
                 f"Fitting background, energy bin [{self.energy_axis.edges[e]:.2f}, "
                 f"{self.energy_axis.edges[e + 1]:.2f}]"
             )
             corrected_counts[e] = self.fit_background(
+                self.model_to_fit,
+                x, y,
                 count_map=count_background[e].astype(int),
                 exp_map_total=exp_total_ds.data[e],
                 exp_map=exp_ds.data[e],

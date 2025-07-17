@@ -20,7 +20,15 @@ class PoissonFitter(Fitter):
     supports_uncertainties = False
 
     def __init__(self):
-        super().__init__()
+        super().__init__(optimizer=self._optimizer, statistic=self._statistic)
+
+    @staticmethod
+    def _optimizer():
+        raise NotImplementedError()
+
+    @staticmethod
+    def _statistic(self):
+        raise NotImplementedError()
 
     def __call__(self,
                  model: Model,
@@ -58,6 +66,7 @@ class PoissonFitter(Fitter):
         # flatten coords & data
         flat_coords = [c.ravel() for c in coords]
         flat_data   = data.ravel().astype(int)
+        flat_exposure_correction = exposure_correction.ravel()
 
         # precompute log‑factorial
         log_fact = self._log_factorial(flat_data)
@@ -67,31 +76,45 @@ class PoissonFitter(Fitter):
 
         # build list of free parameters
         all_params = list(model_copy.param_names)
-        free_params = [p for p in all_params if p not in tied]
+        free_params = [p for p in all_params if (p not in tied) or (not tied[p])]
 
         # initial seeds, bounds, fixed flags
         seeds  = {p: getattr(model_copy, p).value for p in free_params}
         bounds = {p: model_copy.bounds.get(p, (None, None)) for p in free_params}
         fixed  = {p: model_copy.fixed.get(p, False)         for p in free_params}
 
-        # helper to apply tied relations
+        # helper to apply parameters and tied relation
         def apply_params_and_tied(pars):
             # update free params
             for name, val in pars.items():
                 setattr(model_copy, name, val)
             # update tied params
             for name, rule in tied.items():
-                val = rule(model_copy) if callable(rule) else eval(rule, {}, {p: getattr(model, p).value for p in all_params})
+                if callable(rule):
+                    val = rule(model_copy)
+                elif isinstance(rule, str):
+                    ctx = {p: getattr(model_copy, p).value for p in all_params}
+                    val = eval(rule, {}, ctx)
+                else:
+                    continue
                 setattr(model_copy, name, val)
 
         # negative log‑likelihood
         def neg_logL(**pars):
             apply_params_and_tied(pars)
-            mu = model_copy(*flat_coords) * exposure_correction
+            mu = model_copy(*flat_coords) * flat_exposure_correction
             return -np.sum(self._log_poisson(mu, flat_data, log_fact))
 
+        # wrapper to accept both positional and keyword args
+        def fcn_wrapper(*args, **kwargs):
+            if args:
+                pars = dict(zip(free_params, args))
+            else:
+                pars = kwargs
+            return neg_logL(**pars)
+
         # set up Minuit
-        m = Minuit(neg_logL, name=free_params, **seeds)
+        m = Minuit(fcn_wrapper, name=free_params, **seeds)
         m.errordef = Minuit.LIKELIHOOD
 
         # apply bounds & fixed
