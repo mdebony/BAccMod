@@ -26,6 +26,7 @@ class PoissonFitter(Fitter):
                  model: Model,
                  *coords: List[np.ndarray],
                  data: np.ndarray,
+                 exposure_correction: np.ndarray = None,
                  maxiter: int = 1000) -> Model:
         """
         Fit the model to the data following poisson likelihood statistics and using iminuit
@@ -38,6 +39,8 @@ class PoissonFitter(Fitter):
                 N arrays of shape = data.shape giving the N coordinate grids
             data : np.array
                 Integer counts array of N dimension
+            exposure_correction: np.array
+                Floating point value to correct for difference of exposure in the data
             maxiter : int
                 maximum number of iteration for fitting, as the fitting is performed in two steps, could be the double of this value in practice
 
@@ -48,6 +51,9 @@ class PoissonFitter(Fitter):
         """
         # work on a copy
         model_copy = model.copy()
+
+        if exposure_correction is None:
+            exposure_correction = np.ones_like(data, dtype=np.float64)
 
         # flatten coords & data
         flat_coords = [c.ravel() for c in coords]
@@ -81,7 +87,7 @@ class PoissonFitter(Fitter):
         # negative log‑likelihood
         def neg_logL(**pars):
             apply_params_and_tied(pars)
-            mu = model_copy(*flat_coords)
+            mu = model_copy(*flat_coords) * exposure_correction
             return -np.sum(self._log_poisson(mu, flat_data, log_fact))
 
         # set up Minuit
