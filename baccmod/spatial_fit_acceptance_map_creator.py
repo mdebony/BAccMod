@@ -9,6 +9,7 @@ import logging
 import astropy.units as u
 import gammapy
 import numpy as np
+from astropy.modeling import Fittable2DModel
 from astropy.modeling.functional_models import Gaussian2D
 from gammapy.irf import Background3D, FoVAlignment
 from gammapy.maps import MapAxis
@@ -43,7 +44,8 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         activate_interpolation_cleaning: bool = False,
         interpolation_cleaning_energy_relative_threshold: float = 1e-4,
         interpolation_cleaning_spatial_relative_threshold: float = 1e-2,
-        model_to_fit = Gaussian2D()
+        name_normalisation_parameter: str = 'amplitude',
+        model_to_fit: Fittable2DModel = Gaussian2D()
     ) -> None:
         """
         Spatial “fit” acceptance creator: splits each energy slice, calls BaseFitAcceptanceMapCreator.fit_background(),
@@ -51,7 +53,47 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
 
         Parameters
         ----------
-        energy_axis, offset_axis, oversample_map, etc.  (same as BaseFit, plus fit_fnc, fit_seeds, fit_bounds)
+        energy_axis : MapAxis
+            The energy axis for the acceptance model
+        offset_axis : MapAxis
+            The offset axis for the acceptance model
+        oversample_map : int, optional
+            Oversample in number of pixel of the spatial axis used for the calculation
+        exclude_regions : list of regions.SkyRegion, optional
+            Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
+        cos_zenith_binning_method : str, optional
+            The method used for cos zenith binning: 'min_livetime','min_n_observation'
+        cos_zenith_binning_parameter_value : int, optional
+            Minimum livetime (in seconds) or number of observations per zenith bins
+        initial_cos_zenith_binning : float, optional
+            Initial bin size for cos zenith binning
+        max_angular_separation_wobble : u.Quantity, optional
+            The maximum angular separation between identified wobbles, in degrees
+        zenith_binning_run_splitting : float, optional
+            If true, will split each run to match zenith binning for the base model computation
+            Could be computationally expensive, especially at high zenith with a high resolution zenith binning
+        max_fraction_pixel_rotation_fov : bool, optional
+            For camera frame transformation the maximum size relative to a pixel a rotation is allowed
+        time_resolution : astropy.units.Quantity, optional
+            Time resolution to use for the computation of the rotation of the FoV and cut as function of the zenith bins
+        use_mini_irf_computation : bool, optional
+            If true, in case the case of zenith interpolation or binning, each run will be divided in small subrun (the slicing is based on time).
+            A model will be computed for each sub run before averaging them to obtain the final model for the run.
+            Should improve the accuracy of the model, especially at high zenith angle.
+        mini_irf_time_resolution : astropy.units.Quantity, optional
+            Time resolution to use for mini irf used for computation of the final background model
+        interpolation_type: str, optional
+            Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
+        activate_interpolation_cleaning: bool, optional
+            If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
+        interpolation_cleaning_energy_relative_threshold: float, optional
+            To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
+        interpolation_cleaning_spatial_relative_threshold: float, optional
+            To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
+        name_normalisation_parameter: string, optional
+            All the parameters containing this string in the model will be automatically normalised based on overall counts at the start of the fit
+        model_to_fit: Fittable2DModel, optional
+            The model to fit to the data
         """
         super().__init__(
             energy_axis=energy_axis,
@@ -71,6 +113,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
             activate_interpolation_cleaning=activate_interpolation_cleaning,
             interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
             interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold,
+            name_normalisation_parameter=name_normalisation_parameter
         )
 
         self.model_to_fit = model_to_fit
