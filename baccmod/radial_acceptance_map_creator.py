@@ -38,8 +38,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  time_resolution: u.Quantity = 0.1 * u.s,
                  use_mini_irf_computation: bool = False,
                  mini_irf_time_resolution: u.Quantity = 1. * u.min,
-                 interpolation_type: str = 'linear',
-                 activate_interpolation_cleaning: bool = False,
+                 interpolation_zenith_type: str = 'linear',
+                 activate_interpolation_zenith_cleaning: bool = False,
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
                  interpolation_cleaning_spatial_relative_threshold: float = 1e-2) -> None:
         """
@@ -79,9 +79,9 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             Should improve the accuracy of the model, especially at high zenith angle.
         mini_irf_time_resolution : astropy.units.Quantity, optional
             Time resolution to use for mini irf used for computation of the final background model
-        interpolation_type: str, optional
+        interpolation_zenith_type: str, optional
             Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
-        activate_interpolation_cleaning: bool, optional
+        activate_interpolation_zenith_cleaning: bool, optional
             If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
         interpolation_cleaning_energy_relative_threshold: float, optional
             To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
@@ -115,8 +115,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          time_resolution=time_resolution,
                          use_mini_irf_computation=use_mini_irf_computation,
                          mini_irf_time_resolution=mini_irf_time_resolution,
-                         interpolation_type=interpolation_type,
-                         activate_interpolation_cleaning=activate_interpolation_cleaning,
+                         interpolation_zenith_type=interpolation_zenith_type,
+                         activate_interpolation_zenith_cleaning=activate_interpolation_zenith_cleaning,
                          interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
                          interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold)
 

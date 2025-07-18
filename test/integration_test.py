@@ -163,7 +163,7 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
-                                               interpolation_type='log')
+                                               interpolation_zenith_type='log')
         background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
             observations=self.obs_collection_pks_2155)
         assert type(background_model) is dict
@@ -180,8 +180,8 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
-                                               interpolation_type='log',
-                                               activate_interpolation_cleaning=True)
+                                               interpolation_zenith_type='log',
+                                               activate_interpolation_zenith_cleaning=True)
         background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
             observations=self.obs_collection_pks_2155)
         assert type(background_model) is dict
