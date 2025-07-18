@@ -158,6 +158,41 @@ class TestIntegrationClass:
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
 
+    def test_integration_zenith_interpolated_log_model(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               interpolation_type='log')
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+            observations=self.obs_collection_pks_2155)
+        assert type(background_model) is dict
+        for id_obs in self.id_obs_pks_2155:
+            assert id_obs in background_model
+            assert type(background_model[id_obs]) is Background2D
+            reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log.fits')
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
+
+    def test_integration_zenith_interpolated_log_cleaning_model(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               interpolation_type='log',
+                                               activate_interpolation_cleaning=True)
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+            observations=self.obs_collection_pks_2155)
+        assert type(background_model) is dict
+        for id_obs in self.id_obs_pks_2155:
+            assert id_obs in background_model
+            assert type(background_model[id_obs]) is Background2D
+            reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log_cleaning.fits')
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
+
     def test_integration_zenith_interpolated_model_mini_irf_and_run_splitting(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                offset_axis=self.offset_axis,
