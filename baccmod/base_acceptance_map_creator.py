@@ -860,6 +860,7 @@ class BaseAcceptanceMapCreator(ABC):
             interp_bkg[interp_bkg < 100 * self.threshold_value_log_interpolation] = 0.
         elif self.interpolation_type == 'linear':
             interp_bkg = interp_func(np.cos(zenith))
+            interp_bkg[interp_bkg < 0.] = 0.
         else:
             raise Exception("Unknown interpolation type")
 
@@ -893,8 +894,8 @@ class BaseAcceptanceMapCreator(ABC):
         logger.info('Interpolating from computation energy axis to model energy axis')
 
         unit = data_bkg.unit
-        raw_log_data = np.log10(data_bkg.value+100.*np.finfo(np.float64).tiny)
-        mask_zero_input = np.isclose(0., data_bkg.value, atol=100.*np.finfo(np.float64).tiny)
+        raw_log_data = np.log10(data_bkg.value+self.threshold_value_log_interpolation)
+        mask_zero_input = np.isclose(0., data_bkg.value, atol=100.*self.threshold_value_log_interpolation)
         min_value = np.min(data_bkg.value[~mask_zero_input])
         max_value = np.max(data_bkg.value[~mask_zero_input])
 
