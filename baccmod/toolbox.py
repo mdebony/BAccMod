@@ -200,3 +200,18 @@ def compute_neighbour_condition_validation(a, axis, relative_threshold):
     count_neighbour_condition_valid[slice_down] += neighbour_condition_down.astype(np.uint8)
 
     return count_neighbour_condition_valid
+
+def combine_adjacent_ndarray(arr: np.ndarray, idx: int) -> np.ndarray:
+    """
+    Return a new array where arr[idx] and arr[idx+1] are replaced by their sum.
+    """
+    if not (0 <= idx < arr.size-1):
+        raise IndexError("idx must be between 0 and len(arr)-2")
+    # sum the two adjacent entries
+    s = arr[idx] + arr[idx+1]
+    # build the new array
+    return np.concatenate((
+        arr[:idx],           # all elements before idx
+        [s],                 # the merged value
+        arr[idx+2:]          # all elements after idx+1
+    ))

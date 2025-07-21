@@ -153,10 +153,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         self.fit_seeds = fit_seeds
         self.fit_bounds = fit_bounds
 
-        offset_edges = offset_axis.edges
-        offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
-        self.map_bins = (self.energy_axis_computation.edges, offset_bins, offset_bins)
-
         self.sq_rel_residuals = {'mean': [], 'std': []}
 
     def fit_background(self, count_map, exp_map_total, exp_map):
@@ -238,7 +234,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         """
 
         # Compute base data
-        count_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
+        count_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis = self._create_base_computation_map(
             observations)
 
         # Downsample map to bkg model resolution
@@ -264,7 +260,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             corrected_counts = np.empty(count_background.shape)
             self.sq_rel_residuals = {'mean': [], 'std': []}
             for e in range(count_background.shape[0]):
-                logger.info(f"Energy bin : [{self.energy_axis_computation.edges[e]:.2f},{self.energy_axis_computation.edges[e + 1]:.2f}]")
+                logger.info(f"Energy bin : [{computation_energy_axis.edges[e]:.2f},{computation_energy_axis.edges[e + 1]:.2f}]")
                 corrected_counts[e] = self.fit_background(count_background[e].astype(int),
                                                           exp_map_background_total_downsample.data[e],
                                                           exp_map_background_downsample.data[e],
@@ -276,10 +272,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         else:
             raise NotImplementedError(f"Requested method '{self.method}' is not valid.")
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
-        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis_computation.bin_width[:, np.newaxis,
+        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / computation_energy_axis.bin_width[:, np.newaxis,
                                                                              np.newaxis] / livetime
 
-        data_background = self._interpolate_bkg_to_energy_axis(data_background, self.energy_axis_computation)
+        data_background = self._interpolate_bkg_to_energy_axis(data_background, computation_energy_axis)
 
         if gammapy_major_version == 1 and gammapy_minor_version >= 3:
             acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
@@ -292,8 +288,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         return acceptance_map
 
-    def _create_base_computation_map(self, observations: Observations) -> Tuple[
-                                     np.ndarray, WcsNDMap, WcsNDMap, u.Quantity]:
+    def _create_base_computation_map(self, observations: Observations) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
         """
         From a list of observations return a stacked finely binned counts and exposure map in camera frame to compute a
         model
@@ -313,10 +308,19 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The exposure map without correction for exclusion regions
         livetime : astropy.unit.Quantity
             The total exposure time for the model
+        energy_axis : gammapy.maps.MapAxis
+            The energy axis used for the computation
         """
-        count_background = np.zeros((len(self.map_bins[0]) - 1,
-                                     len(self.map_bins[1]) - 1,
-                                     len(self.map_bins[2]) - 1))
+
+        computation_energy_axis = self.energy_axis_computation.copy()
+
+        offset_edges = self.offset_axis.edges
+        offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
+        map_bins = (computation_energy_axis.edges, offset_bins, offset_bins)
+
+        count_background = np.zeros((len(map_bins[0]) - 1,
+                                     len(map_bins[1]) - 1,
+                                     len(map_bins[2]) - 1))
         exp_map_background = WcsNDMap(geom=self.geom, unit=u.s)
         exp_map_background_total = WcsNDMap(geom=self.geom, unit=u.s)
         livetime = 0. * u.s
@@ -333,7 +337,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                -events_camera_frame.lon,
                                                events_camera_frame.lat
                                                ),
-                                              bins=self.map_bins)
+                                              bins=map_bins)
                 # Create exposure maps and fill them with the obs livetime
                 exp_map_obs = MapDataset.create(geom=self.geom)
                 exp_map_obs_total = MapDataset.create(geom=self.geom)
@@ -372,4 +376,4 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 exp_map_background_total.data += exp_map_obs_total.counts.data
                 livetime += obs.observation_live_time_duration
 
-        return count_background, exp_map_background, exp_map_background_total, livetime
+        return count_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis

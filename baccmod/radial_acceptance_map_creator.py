@@ -133,10 +133,10 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         -------
         acceptance_map : Background2D
         """
-        count_map_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
+        count_map_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis = self._create_base_computation_map(
             observations)
 
-        data_background = np.zeros((self.energy_axis_computation.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
+        data_background = np.zeros((computation_energy_axis.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
         for i in range(self.offset_axis.nbin):
             if np.isclose(0. * u.deg, self.offset_axis.edges[i]):
                 selection_region = CircleSkyRegion(center=self.center_map, radius=self.offset_axis.edges[i + 1])
@@ -145,22 +145,22 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                           inner_radius=self.offset_axis.edges[i],
                                                           outer_radius=self.offset_axis.edges[i + 1])
             selection_map = self.geom.to_image().region_mask([selection_region])
-            for j in range(self.energy_axis_computation.nbin):
+            for j in range(computation_energy_axis.nbin):
                 value = u.dimensionless_unscaled * np.sum(count_map_background.data[j, :, :] * selection_map)
                 value *= np.sum(exp_map_background_total.data[j, :, :] * selection_map) / np.sum(
                     exp_map_background.data[j, :, :] * selection_map)
 
-                value /= (self.energy_axis_computation.edges[j + 1] - self.energy_axis_computation.edges[j])
+                value /= (computation_energy_axis.edges[j + 1] - computation_energy_axis.edges[j])
                 value /= 2. * np.pi * (
                             np.cos(self.offset_axis.edges[i]) - np.cos(self.offset_axis.edges[i + 1])) * u.steradian
                 value /= livetime
                 data_background[j, i] = value
 
-        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, self.energy_axis_computation))
+        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, computation_energy_axis))
 
         return acceptance_map
 
-    def _create_base_computation_map(self, observations: Observations) -> Tuple[WcsNDMap, WcsNDMap, WcsNDMap, u.Quantity]:
+    def _create_base_computation_map(self, observations: Observations) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
         """
         From a list of observations return a stacked finely binned counts and exposure map in camera frame to compute a
         model
@@ -180,15 +180,19 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The exposure map without correction for exclusion regions
         livetime : astropy.unit.Quantity
             The total exposure time for the model
+        energy_axis : gammapy.maps.MapAxis
+            The energy axis used for the computation
         """
         count_map_background = WcsNDMap(geom=self.geom)
         exp_map_background = WcsNDMap(geom=self.geom, unit=u.s)
         exp_map_background_total = WcsNDMap(geom=self.geom, unit=u.s)
         livetime = 0. * u.s
 
+        computation_energy_axis = self.energy_axis_computation.copy()
+
         for obs in observations:
             geom = WcsGeom.create(skydir=obs.pointing.fixed_icrs, npix=(self.n_bins_map, self.n_bins_map),
-                                  binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
+                                  binsz=self.spatial_bin_size, frame="icrs", axes=[computation_energy_axis])
             count_map_obs, exclusion_mask = self._create_map(obs, geom, self.exclude_regions, add_bkg=False)
 
             exp_map_obs = MapDataset.create(geom=count_map_obs.geoms['geom'])
@@ -205,4 +209,4 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             exp_map_background_total.data += exp_map_obs_total.counts.data
             livetime += obs.observation_live_time_duration
 
-        return count_map_background, exp_map_background, exp_map_background_total, livetime
+        return count_map_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis
