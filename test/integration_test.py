@@ -12,6 +12,9 @@ from regions import CircleSkyRegion
 from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator, SpatialFitAcceptanceMapCreator
 
 import gammapy
+
+from baccmod.spectral_fit_acceptance_map_creator import SpectralFitAcceptanceMapCreator
+
 gammapy_version = gammapy.__version__
 gammapy_ver_major = int(gammapy_version.split('.')[0])
 gammapy_ver_minor = int(gammapy_version.split('.')[1])
@@ -75,6 +78,23 @@ class TestIntegrationClass:
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
+
+    def test_integration_spectral_fit(self):
+        bkg_maker = SpectralFitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                                    offset_axis=self.offset_axis,
+                                                    oversample_map=5,
+                                                    exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
+        # TODO add reference
+        #reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
+        #relative_error = np.abs(background_model.data - reference.data) / reference.data
+        #if np.sum(relative_error > 1e-4) > 0:
+        #    logging.warning(f'Maximum relative error : {np.nanmax(relative_error)}, fraction above 1e-3 : {np.sum(relative_error > 1e-3)/relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2)/relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1)/relative_error.size}')
+        #assert np.all(np.isclose(background_model.data, reference.data,
+        #                         atol=self.absolute_tolerance,
+        #                         rtol=self.relative_tolerance))
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
