@@ -165,6 +165,26 @@ class BaseAcceptanceMapCreator(ABC):
         self.use_mini_irf_computation = use_mini_irf_computation
         self.mini_irf_time_resolution = mini_irf_time_resolution
 
+    def _get_geom(self, energy_axis: MapAxis = None) -> WcsGeom:
+        """
+        Return the gammapy geometry for maps based on the provided energy axis (if none is provided, use the default axis for computation)
+
+        Parameters
+        ----------
+        energy_axis : MapAxis
+            The energy axis that will be associated with spatial information to make the full geometry
+
+        Returns
+        -------
+        geom: WcsGeom
+            The geometry object to use to create gammapy maps
+
+        """
+        if energy_axis is None:
+            energy_axis = self.energy_axis_computation
+        return WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
+                              binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis])
+
     @staticmethod
     def _get_events_in_camera_frame(obs: Observation) -> SkyCoord:
         """
