@@ -141,11 +141,11 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         -------
         acceptance_map : Background2D
         """
-        count_map_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis = self._create_base_computation_map(
+        count_map_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation = self._create_base_computation_map(
             observations)
-        geom = self._get_geom(computation_energy_axis)
+        geom = self._get_geom(energy_axis_computation)
 
-        data_background = np.zeros((computation_energy_axis.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
+        data_background = np.zeros((energy_axis_computation.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
         for i in range(self.offset_axis.nbin):
             if np.isclose(0. * u.deg, self.offset_axis.edges[i]):
                 selection_region = CircleSkyRegion(center=self.center_map, radius=self.offset_axis.edges[i + 1])
@@ -154,18 +154,18 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                           inner_radius=self.offset_axis.edges[i],
                                                           outer_radius=self.offset_axis.edges[i + 1])
             selection_map = geom.to_image().region_mask([selection_region])
-            for j in range(computation_energy_axis.nbin):
+            for j in range(energy_axis_computation.nbin):
                 value = u.dimensionless_unscaled * np.sum(count_map_background.data[j, :, :] * selection_map)
                 value *= np.sum(exp_map_background_total.data[j, :, :] * selection_map) / np.sum(
                     exp_map_background.data[j, :, :] * selection_map)
 
-                value /= (computation_energy_axis.edges[j + 1] - computation_energy_axis.edges[j])
+                value /= (energy_axis_computation.edges[j + 1] - energy_axis_computation.edges[j])
                 value /= 2. * np.pi * (
                             np.cos(self.offset_axis.edges[i]) - np.cos(self.offset_axis.edges[i + 1])) * u.steradian
                 value /= livetime
                 data_background[j, i] = value
 
-        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, computation_energy_axis))
+        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation))
 
         return acceptance_map
 
@@ -193,16 +193,16 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for the computation
         """
 
-        computation_energy_axis = self.energy_axis_computation.copy()
+        energy_axis_computation = self.energy_axis_computation.copy()
         if self.dynamic_energy_axis:
             data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
             for obs in observations:
-                mask_event = obs.events.offset <= self.offset_axis.edges_max[-1]
-                distrib, _ = np.histogram(obs.events.energy[mask_event], computation_energy_axis.edges)
+                mask_event = obs.events.offset <= self.max_offset
+                distrib, _ = np.histogram(obs.events.energy[mask_event], energy_axis_computation.edges)
                 data_energy_distribution += distrib
-            computation_energy_axis = self._compute_dynamic_energy_axis(computation_energy_axis, data_energy_distribution, self.offset_axis.nbin)
+            energy_axis_computation = self._compute_dynamic_energy_axis(energy_axis_computation, data_energy_distribution, self.offset_axis.nbin)
 
-        geom = self._get_geom(computation_energy_axis)
+        geom = self._get_geom(energy_axis_computation)
         count_map_background = WcsNDMap(geom=geom)
         exp_map_background = WcsNDMap(geom=geom, unit=u.s)
         exp_map_background_total = WcsNDMap(geom=geom, unit=u.s)
@@ -210,7 +210,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         for obs in observations:
             geom = WcsGeom.create(skydir=obs.pointing.fixed_icrs, npix=(self.n_bins_map, self.n_bins_map),
-                                  binsz=self.spatial_bin_size, frame="icrs", axes=[computation_energy_axis])
+                                  binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis_computation])
             count_map_obs, exclusion_mask = self._create_map(obs, geom, self.exclude_regions, add_bkg=False)
 
             exp_map_obs = MapDataset.create(geom=count_map_obs.geoms['geom'])
@@ -227,4 +227,4 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             exp_map_background_total.data += exp_map_obs_total.counts.data
             livetime += obs.observation_live_time_duration
 
-        return count_map_background, exp_map_background, exp_map_background_total, livetime, computation_energy_axis
+        return count_map_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation
