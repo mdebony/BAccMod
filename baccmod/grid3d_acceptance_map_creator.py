@@ -194,11 +194,11 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         Returns
         -------
         count_background : numpy.ndarray
-            The background counts
+            The background counts (low resolution)
         exp_map_background : gammapy.map.WcsNDMap
-            The exposure map corrected for exclusion regions
+            The exposure map corrected for exclusion regions (high resolution)
         exp_map_background_total : gammapy.map.WcsNDMap
-            The exposure map without correction for exclusion regions
+            The exposure map without correction for exclusion regions (high resolution)
         livetime : astropy.unit.Quantity
             The total exposure time for the model
         """

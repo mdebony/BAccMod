@@ -120,15 +120,18 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
 
     def create_acceptance_map(self, observations) -> Background3D:
         """
-        Calculate a 3D grid acceptance map by fitting a 2D function in each energy slice.
+        Calculate a 3D grid acceptance map by fitting 2D model in each energy slice
 
-        Steps:
-        1) call self._create_base_computation_map(...) to get (counts, exp_map, exp_map_total, livetime)
-        2) downsample exposures to the “model resolution”
-        3) for each energy bin: data_e = self.fit_background(counts[e], exp_total_ds[e], exp_ds[e])
-        4) normalize to [counts / (sr MeV s)]
-        5) pack into a Background3D
+        Parameters
+        ----------
+        observations : gammapy.data.observations.Observations
+            The collection of observations used to make the acceptance map
+
+        Returns
+        -------
+        acceptance_map : gammapy.irf.background.Background3D
         """
+
         # 1) gather fine-binned counts + exposures + livetime
         count_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
             observations
