@@ -41,6 +41,9 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  oversample_map: int = 10,
                  energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
+                 dynamic_energy_axis: bool = False,
+                 dynamic_energy_axis_target_statistics: int = 500,
+                 dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
                  initial_cos_zenith_binning: float = 0.01,
@@ -73,6 +76,12 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
+        dynamic_energy_axis: bool
+            if True, the energy axis will for computation will be determined independently for each model, the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
+        dynamic_energy_axis_target_statistics: int
+            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
+        dynamic_energy_axis_maximum_wideness_bin: float
+            energy bin will not be merged if the resulting bin will be wider (in logorarithmic space) than this value
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime','min_n_observation'
         cos_zenith_binning_parameter_value : int, optional
@@ -134,6 +143,9 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          spatial_resolution=spatial_resolution,
                          energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
+                         dynamic_energy_axis=dynamic_energy_axis,
+                         dynamic_energy_axis_target_statistics=dynamic_energy_axis_target_statistics,
+                         dynamic_energy_axis_maximum_wideness_bin=dynamic_energy_axis_maximum_wideness_bin,
                          cos_zenith_binning_method=cos_zenith_binning_method,
                          cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
                          initial_cos_zenith_binning=initial_cos_zenith_binning,
@@ -312,24 +324,35 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for the computation
         """
 
-        computation_energy_axis = self.energy_axis_computation.copy()
-
         offset_edges = self.offset_axis.edges
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
-        map_bins = (computation_energy_axis.edges, offset_bins, offset_bins)
 
+        computation_energy_axis = self.energy_axis_computation.copy()
+        if self.dynamic_energy_axis:
+            data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
+            for obs in observations:
+                events_camera_frame = self._get_events_in_camera_frame(obs)
+                mask_event = np.logical_and(np.abs(events_camera_frame.lon) <= self.max_offset, np.abs(events_camera_frame.lat) <= self.max_offset)
+                distrib, _ = np.histogram(obs.events.energy[mask_event], computation_energy_axis.edges)
+                data_energy_distribution += distrib
+            computation_energy_axis = self._compute_dynamic_energy_axis(computation_energy_axis,
+                                                                        data_energy_distribution,
+                                                                        len(offset_bins)**2)
+
+        map_bins = (computation_energy_axis.edges, offset_bins, offset_bins)
+        geom = self._get_geom(computation_energy_axis)
         count_background = np.zeros((len(map_bins[0]) - 1,
                                      len(map_bins[1]) - 1,
                                      len(map_bins[2]) - 1))
-        exp_map_background = WcsNDMap(geom=self.geom, unit=u.s)
-        exp_map_background_total = WcsNDMap(geom=self.geom, unit=u.s)
+        exp_map_background = WcsNDMap(geom=geom, unit=u.s)
+        exp_map_background_total = WcsNDMap(geom=geom, unit=u.s)
         livetime = 0. * u.s
 
         with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
             for obs in observations:
                 # Filter events in exclusion regions
-                geom = RegionGeom.from_regions(self.exclude_regions)
-                mask = geom.contains(obs.events.radec)
+                geom_exclude_regions = RegionGeom.from_regions(self.exclude_regions)
+                mask = geom_exclude_regions.contains(obs.events.radec)
                 obs._events = obs.events.select_row_subset(~mask)
                 # Create a count map in camera frame
                 events_camera_frame = self._get_events_in_camera_frame(obs)
@@ -339,8 +362,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                ),
                                               bins=map_bins)
                 # Create exposure maps and fill them with the obs livetime
-                exp_map_obs = MapDataset.create(geom=self.geom)
-                exp_map_obs_total = MapDataset.create(geom=self.geom)
+                exp_map_obs = MapDataset.create(geom=geom)
+                exp_map_obs_total = MapDataset.create(geom=geom)
                 exp_map_obs.counts.data = obs.observation_live_time_duration.value
                 exp_map_obs_total.counts.data = obs.observation_live_time_duration.value
 
@@ -357,7 +380,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                     average_alt_az_pointing = obs.get_pointing_icrs(time).transform_to(average_alt_az_frame)
                     exclusion_region_camera_frame = self._transform_exclusion_region_to_camera_frame(
                         average_alt_az_pointing)
-                    geom_image = self.geom.to_image()
+                    geom_image = geom.to_image()
 
                     exclusion_mask_t = ~geom_image.region_mask(exclusion_region_camera_frame) if len(
                         exclusion_region_camera_frame) > 0 else ~Map.from_geom(geom_image)

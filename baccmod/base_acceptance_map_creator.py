@@ -134,8 +134,6 @@ class BaseAcceptanceMapCreator(ABC):
         self.n_bins_map = 2 * int(np.rint((self.max_offset / spatial_resolution).to(u.dimensionless_unscaled)))
         self.spatial_bin_size = self.max_offset / (self.n_bins_map / 2)
         self.center_map = SkyCoord(ra=0. * u.deg, dec=0. * u.deg, frame='icrs')
-        self.geom = WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
-                                   binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
         logger.info(
             'Computation will be made with a bin size of {:.3f} arcmin'.format(
                 self.spatial_bin_size.to_value(u.arcmin)))
