@@ -113,7 +113,7 @@ class PoissonFitter(Fitter):
                 usi[2 * i + 1] = slice(1, pts.shape[2 * i + 1])
                 lsi[2 * i + 1] = slice(0, pts.shape[2 * i + 1] - 1)
                 usi, lsi = tuple(usi),  tuple(lsi)
-                width_integration = evaluation_points[usi] - evaluation_points[lsi]
+                width_integration = pts[usi] - pts[lsi]
 
                 # Compute weights associated with each points for the integration
                 w = np.ones_like(pts)
