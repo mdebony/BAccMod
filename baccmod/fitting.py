@@ -119,11 +119,9 @@ class PoissonFitter(Fitter):
 
         # apply bounds & fixed
         for p in free_params:
-            lo, hi = bounds[p]
+            m.limits[p] = bounds[p]
             if fixed[p]:
                 m.fixed[p] = True
-            elif lo is not None or hi is not None:
-                m.limits[p] = (lo, hi)
 
         # minimize
         m.simplex(ncall=maxiter).migrad(ncall=maxiter)
