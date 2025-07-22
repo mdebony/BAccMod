@@ -19,6 +19,8 @@ class PoissonFitter(Fitter):
     supported_constraints = ['fixed', 'bounds', 'tied']
     supports_uncertainties = False
 
+    upsampling_integration = 10
+
     def __init__(self):
         super().__init__(optimizer=self._optimizer, statistic=self._statistic)
 
@@ -35,6 +37,8 @@ class PoissonFitter(Fitter):
                  *coords: List[np.ndarray],
                  data: np.ndarray,
                  exposure_correction: np.ndarray = None,
+                 integrated_data: bool = False,
+                 log_scaling: bool = False,
                  maxiter: int = 1000) -> Model:
         """
         Fit the model to the data following poisson likelihood statistics and using iminuit
@@ -49,6 +53,10 @@ class PoissonFitter(Fitter):
                 Integer counts array of N dimension
             exposure_correction: np.array
                 Floating point value to correct for difference of exposure in the data
+            integrated_data: bool
+                If true the data are considered as integrated and coords are the edges of the bins
+            log_scaling: bool
+                A logarithmic scaled binning is used for integration
             maxiter : int
                 maximum number of iteration for fitting, as the fitting is performed in two steps, could be the double of this value in practice
 
@@ -64,9 +72,56 @@ class PoissonFitter(Fitter):
             exposure_correction = np.ones_like(data, dtype=np.float64)
 
         # flatten coords & data
-        flat_coords = [c.ravel() for c in coords]
-        flat_data   = data.ravel().astype(int)
+        flat_data = data.ravel().astype(int)
         flat_exposure_correction = exposure_correction.ravel()
+
+        # Determination of the evaluation points and weights for the integrated case
+        if integrated_data:
+            evaluation_points = []
+            weights = []
+            for i, c in enumerate(coords):
+                # Add a dimension after each individual one for integration, the dimension of the current dimension is extending to store values for the integration
+                dim_expansion = (slice(None), None) * (c.ndim)
+                new_c = np.repeat(c[dim_expansion], repeats=self.upsampling_integration+1, axis=2*i+1)
+
+                # Create slice for width determination
+                us, ls = [slice(None)] * new_c.ndim, [slice(None)] * new_c.ndim
+                us[2*i] = slice(1, new_c.shape[2*i])
+                ls[2*i] = slice(0, new_c.shape[2*i] - 1)
+                for j in range(len(coords)):
+                    if i != j:
+                        # Take into account that the other axis will be reduced by one also due to transformation edges -> bin
+                        us[2*j] = slice(0, new_c.shape[2*j] - 1)
+                        ls[2*j] = slice(0, new_c.shape[2*j] - 1)
+                us, ls = tuple(us),  tuple(ls)
+
+                # Slice dim expansion of the evaluation points
+                sd = [None] * new_c.ndim
+                sd[2*i+1] = slice(None)
+                sd = tuple(sd)
+
+                if log_scaling:
+                    width = np.log10(new_c[us]) - np.log10(new_c[ls])
+                    pts = 10**(np.log10(new_c[ls]) + width * np.linspace(0, 1, self.upsampling_integration + 1)[sd])
+                else:
+                    width = new_c[us] - new_c[ls]
+                    pts = new_c[ls] + width * np.linspace(0, 1, self.upsampling_integration+1)[sd]
+                evaluation_points.append(pts)
+
+                # Create slice for integration width determination
+                usi, lsi = [slice(None)] * pts.ndim, [slice(None)] * pts.ndim
+                usi[2 * i + 1] = slice(1, pts.shape[2 * i + 1])
+                lsi[2 * i + 1] = slice(0, pts.shape[2 * i + 1] - 1)
+                usi, lsi = tuple(usi),  tuple(lsi)
+                width_integration = evaluation_points[usi] - evaluation_points[lsi]
+
+                # Compute weights associated with each points for the integration
+                w = np.ones_like(pts)
+                w[lsi] += 0.5 * width_integration
+                w[usi] += 0.5 * width_integration
+                weights.append(w)
+        else:
+            evaluation_points = [c.ravel() for c in coords]
 
         # precompute log‑factorial
         log_fact = self._log_factorial(flat_data)
@@ -102,7 +157,13 @@ class PoissonFitter(Fitter):
         # negative log‑likelihood
         def neg_logL(**pars):
             apply_params_and_tied(pars)
-            mu = model_copy(*flat_coords) * flat_exposure_correction
+            if integrated_data:
+                val = model_copy(*evaluation_points)
+                for i in range(len(coords)-1, -1, -1):
+                    val = np.sum(val*weights[i], axis=2*i+1)
+                mu = val.ravel() * flat_exposure_correction
+            else:
+                mu = model_copy(*evaluation_points) * flat_exposure_correction
             return -np.sum(self._log_poisson(mu, flat_data, log_fact))
 
         # wrapper to accept both positional and keyword args
