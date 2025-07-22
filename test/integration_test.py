@@ -141,7 +141,7 @@ class TestIntegrationClass:
 
 
 
-    def test_integration_3D_dynamic_unregular_computation_axis(self):
+    def test_integration_3D_dynamic_irregular_computation_axis(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                energy_axis_computation=self.energy_axis_computation_dense,
                                                offset_axis=self.offset_axis,
@@ -152,13 +152,13 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         #TODO Create reference
-        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_unregular_energy.fits')
+        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
         #self._print_model_precision(background_model, reference)
         #assert np.all(np.isclose(background_model.data, reference.data,
         #                         atol=self.absolute_tolerance,
         #                         rtol=self.relative_tolerance))
 
-    def test_integration_spatial_fit_dynamic_unregular_computation_axis(self):
+    def test_integration_spatial_fit_dynamic_irregular_computation_axis(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                energy_axis_computation=self.energy_axis_computation_dense,
                                                offset_axis=self.offset_axis,
@@ -170,13 +170,13 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         #TODO Create reference
-        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_unregular_energy.fits')
+        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
         #self._print_model_precision(background_model, reference)
         #assert np.all(np.isclose(background_model.data, reference.data,
         #                         atol=self.absolute_tolerance,
         #                         rtol=self.relative_tolerance))
 
-    def test_integration_2D_dynamic_unregular_computation_axis(self):
+    def test_integration_2D_dynamic_irregular_computation_axis(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                energy_axis_computation=self.energy_axis_computation_dense,
                                                offset_axis=self.offset_axis,
@@ -187,7 +187,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         #TODO Create reference
-        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_unregular_energy.fits')
+        #reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
         #self._print_model_precision(background_model, reference)
         #assert np.all(np.isclose(background_model.data, reference.data,
         #                         atol=self.absolute_tolerance,
