@@ -308,6 +308,19 @@ acceptance_models = acceptance_model_creator.create_acceptance_map_per_observati
                                                                                    zenith_interpolation=True)
 ```
 
+## Compute background model with a non regular energy binning
+
+For all models it's possible to compute model on a non regular energy binning. The output model will then be interpolated to the energy_axis provided. The main advantage of this feature is too allow for a finner binning at low energy where they are a high statistics available and coarser one at high energy where less events statistics is available. This energy binning should be passed through the energy_axis_computation argument when creating object.
+An example :
+```python
+energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.05, 0.5, 6)) + list(np.geomspace(0.5, 5, 3)[1:])) * u.TeV, name='energy')
+acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
+                                                      offset_axis_acceptance,
+                                                      exclude_regions=exclude_regions,
+                                                      oversample_map=10)
+acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection)
+```
+
 # Available model
 
 All models have an identical interface. You just need to change the class used to change the model created.

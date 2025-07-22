@@ -45,6 +45,7 @@ class BaseAcceptanceMapCreator(ABC):
                  energy_axis: MapAxis,
                  max_offset: u.Quantity,
                  spatial_resolution: u.Quantity,
+                 energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
@@ -55,8 +56,8 @@ class BaseAcceptanceMapCreator(ABC):
                  time_resolution: u.Quantity = 0.1 * u.s,
                  use_mini_irf_computation: bool = False,
                  mini_irf_time_resolution: u.Quantity = 1. * u.min,
-                 interpolation_type: str = 'linear',
-                 activate_interpolation_cleaning: bool = False,
+                 interpolation_zenith_type: str = 'linear',
+                 activate_interpolation_zenith_cleaning: bool = False,
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
                  interpolation_cleaning_spatial_relative_threshold: float = 1e-2) -> None:
         """
@@ -69,7 +70,9 @@ class BaseAcceptanceMapCreator(ABC):
         max_offset : astropy.units.Quantity
             The offset corresponding to the edge of the model
         spatial_resolution : astropy.units.Quantity
-            The spatial resolution
+            The spatial resolution of the finely binned map used for computation
+        energy_axis_computation : gammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Regions with known or putative gamma-ray emission, will be excluded from the calculation of the acceptance map
         cos_zenith_binning_method : str, optional
@@ -93,9 +96,9 @@ class BaseAcceptanceMapCreator(ABC):
             Should improve the accuracy of the model, especially at high zenith angle.
         mini_irf_time_resolution : astropy.units.Quantity, optional
             Time resolution to use for mini irf used for computation of the final background model
-        interpolation_type: str, optional
+        interpolation_zenith_type: str, optional
             Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
-        activate_interpolation_cleaning: bool, optional
+        activate_interpolation_zenith_cleaning: bool, optional
             If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
         interpolation_cleaning_energy_relative_threshold: float, optional
             To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
@@ -111,13 +114,14 @@ class BaseAcceptanceMapCreator(ABC):
         self.energy_axis = energy_axis
         self.max_offset = max_offset
         self.exclude_regions = exclude_regions
+        self.energy_axis_computation = self.energy_axis if energy_axis_computation is None else energy_axis_computation
 
         # Calculate map parameter
         self.n_bins_map = 2 * int(np.rint((self.max_offset / spatial_resolution).to(u.dimensionless_unscaled)))
         self.spatial_bin_size = self.max_offset / (self.n_bins_map / 2)
         self.center_map = SkyCoord(ra=0. * u.deg, dec=0. * u.deg, frame='icrs')
         self.geom = WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
-                                   binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis])
+                                   binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
         logger.info(
             'Computation will be made with a bin size of {:.3f} arcmin'.format(
                 self.spatial_bin_size.to_value(u.arcmin)))
@@ -135,10 +139,10 @@ class BaseAcceptanceMapCreator(ABC):
 
         # Store interpolation parameters
         self.threshold_value_log_interpolation = np.finfo(np.float64).tiny
-        self.interpolation_type = interpolation_type
+        self.interpolation_type = interpolation_zenith_type
 
         # Store cleaning parameters for models created from interpolation
-        self.activate_interpolation_cleaning = activate_interpolation_cleaning
+        self.activate_interpolation_cleaning = activate_interpolation_zenith_cleaning
         self.interpolation_cleaning_energy_relative_threshold = interpolation_cleaning_energy_relative_threshold
         self.interpolation_cleaning_spatial_relative_threshold = interpolation_cleaning_spatial_relative_threshold
         self.max_cleaning_iteration = 50
@@ -345,7 +349,7 @@ class BaseAcceptanceMapCreator(ABC):
                                   npix=(self.n_bins_map, self.n_bins_map),
                                   binsz=self.spatial_bin_size,
                                   frame="icrs",
-                                  axes=[self.energy_axis])
+                                  axes=[self.energy_axis_computation])
         map_obs, exclusion_mask = self._create_map(obs, geom_obs, self.exclude_regions, add_bkg=add_bkg)
 
         return map_obs, exclusion_mask
@@ -856,6 +860,7 @@ class BaseAcceptanceMapCreator(ABC):
             interp_bkg[interp_bkg < 100 * self.threshold_value_log_interpolation] = 0.
         elif self.interpolation_type == 'linear':
             interp_bkg = interp_func(np.cos(zenith))
+            interp_bkg[interp_bkg < 0.] = 0.
         else:
             raise Exception("Unknown interpolation type")
 
@@ -863,6 +868,48 @@ class BaseAcceptanceMapCreator(ABC):
             interp_bkg = self._background_cleaning(interp_bkg)
 
         return interp_bkg
+
+    def _interpolate_bkg_to_energy_axis(self, data_bkg: u.Quantity, energy_axis_computation: MapAxis):
+        """
+            Compute the final background model from the provided data by interpolating the energy axis used for computation to the ones for the model
+
+            Parameters
+            ----------
+            data_bkg : u.Quantity
+                The data cube of the background model. The energy axis needs to be the first one.
+            energy_axis_computation : gammapy.maps.geom.MapAxis
+                The energy axis used for computation
+
+            Returns
+            -------
+            final_data_bkg : u.Quantity
+                The background data cube interpolated to the energy axis of the output model
+        """
+
+        # Return the provided bkg data if energy axis are matching
+        if len(energy_axis_computation.edges) == len(self.energy_axis.edges) and np.all(energy_axis_computation.edges == self.energy_axis.edges):
+            logger.info('Identical computation energy axis and model energy axis, no interpolation required')
+            return data_bkg
+
+        logger.info('Interpolating from computation energy axis to model energy axis')
+
+        unit = data_bkg.unit
+        raw_log_data = np.log10(data_bkg.value+self.threshold_value_log_interpolation)
+        mask_zero_input = np.isclose(0., data_bkg.value, atol=100.*self.threshold_value_log_interpolation)
+        min_value = np.min(data_bkg.value[~mask_zero_input])
+        max_value = np.max(data_bkg.value[~mask_zero_input])
+
+        interp_func = interp1d(x=np.log10(energy_axis_computation.center.to_value(u.TeV)),
+                               y=raw_log_data,
+                               axis=0,
+                               fill_value='extrapolate')
+        raw_log_final_data_bkg = interp_func(np.log10(self.energy_axis.center.to_value(u.TeV)))
+        raw_final_data_bkg = 10**raw_log_final_data_bkg
+        mask_zero_final = raw_log_final_data_bkg < (np.log10(min_value) - max(2, np.log10(max_value)-np.log10(min_value))) # All values that are smaller than 2 orders of magnitude than the minimum non zero input data (or the difference in order of magnitude between minimum and maximum) will be considered as zero
+        raw_final_data_bkg[mask_zero_final] = 0.
+
+        return raw_final_data_bkg * unit
+
 
     def create_acceptance_map_cos_zenith_interpolated(self,
                                                       observations: Observations,

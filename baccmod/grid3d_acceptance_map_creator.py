@@ -39,6 +39,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  energy_axis: MapAxis,
                  offset_axis: MapAxis,
                  oversample_map: int = 10,
+                 energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
@@ -53,8 +54,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  fit_fnc='gaussian2d',
                  fit_seeds=None,
                  fit_bounds=None,
-                 interpolation_type: str = 'linear',
-                 activate_interpolation_cleaning: bool = False,
+                 interpolation_zenith_type: str = 'linear',
+                 activate_interpolation_zenith_cleaning: bool = False,
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
                  interpolation_cleaning_spatial_relative_threshold: float = 1e-2) -> None:
         """
@@ -68,6 +69,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The offset axis for the acceptance model
         oversample_map : int, optional
             Oversample in number of pixel of the spatial axis used for the calculation
+        energy_axis_computation : gammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
         cos_zenith_binning_method : str, optional
@@ -100,9 +103,9 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             Should improve the accuracy of the model, especially at high zenith angle.
         mini_irf_time_resolution : astropy.units.Quantity, optional
             Time resolution to use for mini irf used for computation of the final background model
-        interpolation_type: str, optional
+        interpolation_zenith_type: str, optional
             Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
-        activate_interpolation_cleaning: bool, optional
+        activate_interpolation_zenith_cleaning: bool, optional
             If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
         interpolation_cleaning_energy_relative_threshold: float, optional
             To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
@@ -125,21 +128,11 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             np.abs(self.offset_axis.edges[1:] - self.offset_axis.edges[:-1])) / self.oversample_map
         max_offset = np.max(self.offset_axis.edges)
 
-        self.method = method
-        self.fit_fnc = fit_fnc
-        self.fit_seeds = fit_seeds
-        self.fit_bounds = fit_bounds
-
-        offset_edges = offset_axis.edges
-        offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
-        self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
-
-        self.sq_rel_residuals = {'mean': [], 'std': []}
-
         # Initiate upper instance
         super().__init__(energy_axis=energy_axis,
                          max_offset=max_offset,
                          spatial_resolution=spatial_resolution,
+                         energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
                          cos_zenith_binning_method=cos_zenith_binning_method,
                          cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
@@ -150,10 +143,21 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          time_resolution=time_resolution,
                          use_mini_irf_computation=use_mini_irf_computation,
                          mini_irf_time_resolution=mini_irf_time_resolution,
-                         interpolation_type=interpolation_type,
-                         activate_interpolation_cleaning=activate_interpolation_cleaning,
+                         interpolation_zenith_type=interpolation_zenith_type,
+                         activate_interpolation_zenith_cleaning=activate_interpolation_zenith_cleaning,
                          interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
                          interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold)
+
+        self.method = method
+        self.fit_fnc = fit_fnc
+        self.fit_seeds = fit_seeds
+        self.fit_bounds = fit_bounds
+
+        offset_edges = offset_axis.edges
+        offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
+        self.map_bins = (self.energy_axis_computation.edges, offset_bins, offset_bins)
+
+        self.sq_rel_residuals = {'mean': [], 'std': []}
 
     def fit_background(self, count_map, exp_map_total, exp_map):
         centers = self.offset_axis.center.to_value(u.deg)
@@ -260,7 +264,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             corrected_counts = np.empty(count_background.shape)
             self.sq_rel_residuals = {'mean': [], 'std': []}
             for e in range(count_background.shape[0]):
-                logger.info(f"Energy bin : [{self.energy_axis.edges[e]:.2f},{self.energy_axis.edges[e + 1]:.2f}]")
+                logger.info(f"Energy bin : [{self.energy_axis_computation.edges[e]:.2f},{self.energy_axis_computation.edges[e + 1]:.2f}]")
                 corrected_counts[e] = self.fit_background(count_background[e].astype(int),
                                                           exp_map_background_total_downsample.data[e],
                                                           exp_map_background_downsample.data[e],
@@ -272,8 +276,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         else:
             raise NotImplementedError(f"Requested method '{self.method}' is not valid.")
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
-        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis.bin_width[:, np.newaxis,
+        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis_computation.bin_width[:, np.newaxis,
                                                                              np.newaxis] / livetime
+
+        data_background = self._interpolate_bkg_to_energy_axis(data_background, self.energy_axis_computation)
 
         if gammapy_major_version == 1 and gammapy_minor_version >= 3:
             acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],

@@ -41,6 +41,7 @@ class TestIntegrationClass:
                                                                            height=1800. * u.m)
 
     energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=5, per_decade=True, name='energy')
+    energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
     absolute_tolerance = 1e-15
@@ -86,6 +87,46 @@ class TestIntegrationClass:
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
 
+    def test_integration_3D_irregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_bkg_irregular_energy.fits')
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
+
+    def test_integration_spatial_fit_irregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               method='fit')
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_irregular_energy.fits')
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
+
+    def test_integration_2D_irregular_computation_axis(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background2D
+        reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
+
     def test_integration_zenith_binned_model(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                offset_axis=self.offset_axis,
@@ -117,6 +158,41 @@ class TestIntegrationClass:
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
 
+    def test_integration_zenith_interpolated_log_model(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               interpolation_zenith_type='log')
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+            observations=self.obs_collection_pks_2155)
+        assert type(background_model) is dict
+        for id_obs in self.id_obs_pks_2155:
+            assert id_obs in background_model
+            assert type(background_model[id_obs]) is Background2D
+            reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log.fits')
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
+
+    def test_integration_zenith_interpolated_log_cleaning_model(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               interpolation_zenith_type='log',
+                                               activate_interpolation_zenith_cleaning=True)
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+            observations=self.obs_collection_pks_2155)
+        assert type(background_model) is dict
+        for id_obs in self.id_obs_pks_2155:
+            assert id_obs in background_model
+            assert type(background_model[id_obs]) is Background2D
+            reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log_cleaning.fits')
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
+
     def test_integration_zenith_interpolated_model_mini_irf_and_run_splitting(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                offset_axis=self.offset_axis,
@@ -124,13 +200,31 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                use_mini_irf_computation=True,
                                                zenith_binning_run_splitting=True)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
-            observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(observations=self.obs_collection_pks_2155)
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_run_splitting_mini_irf.fits')
+            assert np.all(np.isclose(background_model[id_obs].data, reference.data,
+                                     atol=self.absolute_tolerance,
+                                     rtol=self.relative_tolerance))
+
+    def test_integration_irregular_computation_axis_zenith_interpolated_model_mini_irf_and_run_splitting(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation,
+                                               offset_axis=self.offset_axis,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               use_mini_irf_computation=True,
+                                               zenith_binning_run_splitting=True)
+        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is dict
+        for id_obs in self.id_obs_pks_2155:
+            assert id_obs in background_model
+            assert type(background_model[id_obs]) is Background2D
+            reference = Background2D.read(
+                f'ressource/test_data/reference_model/pks_2155_{id_obs}_irregular_computation_axis_zenith_interpolated_run_splitting_mini_irf.fits')
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
