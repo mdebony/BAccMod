@@ -126,6 +126,9 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         self.sq_rel_residuals = {"mean": [], "std": []}
         self.name_normalisation_parameter = name_normalisation_parameter
 
+        self.integrated_model_fitting = False
+        self.upsampling_integration = 10
+
     @abstractmethod
     def create_acceptance_map(self, observations):
         """
@@ -134,7 +137,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         """
         pass
 
-    def fit_background(self, model: Model, *coords: List[np.ndarray], count_map: np.ndarray, exp_map_total: np.ndarray, exp_map: np.ndarray) -> np.ndarray:
+    def fit_background(self, model: Model, coords_fit: List[np.ndarray], coords_norm: List[np.ndarray], count_map: np.ndarray, exp_map_total: np.ndarray, exp_map: np.ndarray) -> np.ndarray:
         """
         Perform a Poisson fit on the given map (could be 1D, 2D or 3), given
         the fine‐binned exposure (exp_map) and total‐exposure (exp_map_total),
@@ -144,8 +147,10 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         ----------
         model : astropy.modeling.model
             the model to fit to the data
-        coords : List of np.ndarray
-            the list of coordinate
+        coords_fit : List of np.ndarray
+            the list of coordinate, if the integrated_model_fitting is true, should be edges of bins
+        coords_norm : List of np.ndarray
+            the list of coordinate for pre normalisation of the model
         count_map : np.ndarray
             counts in each pixel, integer
         exp_map_total : np.ndarray
@@ -170,7 +175,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         # Correct normalisation of the model
         if self.name_normalisation_parameter is not None:
             # Compute correction
-            init_count_model = np.sum(model_init(*coords)*exp_correction)
+            init_count_model = np.sum(model_init(*coords_norm) * exp_correction)
             correction_norm = np.sum(count_map)/init_count_model
 
             # build list of free parameters
@@ -185,11 +190,12 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
         # Fit the model
         fitter = PoissonFitter()
-        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction)
+        fitter.upsampling_integration = self.upsampling_integration
+        best_model = fitter(model_init, *coords_fit, data=count_map, exposure_correction=exp_correction, integrated_data=self.integrated_model_fitting)
 
         # Collect results & (optionally) track residuals
         if logger.getEffectiveLevel() <= logging.INFO:
-            fitted_model = best_model(*coords) * exp_correction
+            fitted_model = best_model(*coords_norm) * exp_correction
             fitted_model[exp_map == 0] = 1.0
             rel_resid = 100 * (count_map - fitted_model) / fitted_model
             sq_rel_resid = (count_map - fitted_model) / np.sqrt(fitted_model)
@@ -201,4 +207,4 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
                 f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
             )
 
-        return best_model(*coords)
+        return best_model(*coords_norm)

@@ -117,6 +117,7 @@ class SpectralFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         )
 
         self.model_to_fit = model_to_fit
+        self.integrated_model_fitting = True
 
     def create_acceptance_map(self, observations) -> Background3D:
         """
@@ -147,6 +148,7 @@ class SpectralFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         self.sq_rel_residuals = {"mean": [], "std": []}
 
         # 2D coordinates system for the fit
+        edges = self.energy_axis.edges.to_value(u.TeV)
         centers = self.energy_axis.center.to_value(u.TeV)
 
         for ix in range(nx):
@@ -156,7 +158,8 @@ class SpectralFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
                 )
                 corrected_counts[:, ix, iy] = self.fit_background(
                     self.model_to_fit,
-                    centers,
+                    [edges],
+                    [centers],
                     count_map=count_background[:, ix, iy].astype(int),
                     exp_map_total=exp_total_ds.data[:, ix, iy],
                     exp_map=exp_ds.data[:, ix, iy],

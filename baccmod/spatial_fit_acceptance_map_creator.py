@@ -155,7 +155,8 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
             )
             corrected_counts[e] = self.fit_background(
                 self.model_to_fit,
-                x, y,
+                [x, y],
+                [x, y],
                 count_map=count_background[e].astype(int),
                 exp_map_total=exp_total_ds.data[e],
                 exp_map=exp_ds.data[e],
