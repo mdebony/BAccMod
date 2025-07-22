@@ -161,8 +161,9 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
         # Compute exposure correction
         mask = exp_map_total > 0
-        exp_correction = exp_map / exp_map_total
-        exp_correction[~mask] = 0
+        exp_map_total_safe = exp_map_total.copy()
+        exp_map_total_safe[mask] = 1
+        exp_correction = exp_map / exp_map_total_safe
 
         # Initialise the model
         model_init = model.copy()
