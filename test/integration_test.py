@@ -64,7 +64,8 @@ class TestIntegrationClass:
         bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                    offset_axis=self.offset_axis,
                                                    oversample_map=5,
-                                                   exclude_regions=self.exclude_region_PKS_2155)
+                                                   exclude_regions=self.exclude_region_PKS_2155,
+                                                   list_name_normalisation_parameter=['amplitude',])
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
 
