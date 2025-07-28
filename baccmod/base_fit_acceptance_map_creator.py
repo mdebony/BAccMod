@@ -99,7 +99,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         interpolation_cleaning_spatial_relative_threshold: float, optional
             To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
         list_name_normalisation_parameter: list of string, optional
-            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit
+            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit, normalisation correction is done with hypothesis of addition of components, therefore they will be all corrected by the same factor
         """
 
         # Call the “stack”‐only constructor in Grid3D, to set up geometry, offset axes, etc.
@@ -172,7 +172,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         if self.list_name_normalisation_parameter is not None and len(self.list_name_normalisation_parameter) > 0:
             # Compute correction
             init_count_model = np.sum(model_init(*coords)*exp_correction)
-            correction_norm = np.sum(count_map)/(init_count_model*len(self.list_name_normalisation_parameter))
+            correction_norm = np.sum(count_map)/init_count_model
 
             # build list of free parameters
             tied = model_init.tied or {}

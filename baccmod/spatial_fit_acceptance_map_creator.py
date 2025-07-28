@@ -92,7 +92,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         interpolation_cleaning_spatial_relative_threshold: float, optional
             To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
         list_name_normalisation_parameter: list of string, optional
-            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit
+            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit, normalisation correction is done with hypothesis of addition of components, therefore they will be all corrected by the same factor
         model_to_fit: Fittable2DModel, optional
             The model to fit to the data
         """
