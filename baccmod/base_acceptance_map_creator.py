@@ -34,7 +34,8 @@ from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
                       generate_irf_from_mini_irf,
-                      compute_neighbour_condition_validation, combine_adjacent_ndarray)
+                      compute_neighbour_condition_validation,
+                      combine_adjacent_ndarray)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ class BaseAcceptanceMapCreator(ABC):
         dynamic_energy_axis_target_statistics: int
             the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
         dynamic_energy_axis_maximum_wideness_bin: float
-            energy bin will not be merged if the resulting bin will be wider (in logorarithmic space) than this value
+            energy bin will not be merged if the resulting bin will be wider (in logarithmic space) than this value
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime', 'min_livetime_per_wobble', 'min_n_observation', 'min_n_observation_per_wobble'
         cos_zenith_binning_parameter_value : int, optional

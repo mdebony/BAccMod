@@ -332,7 +332,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
             for obs in observations:
                 events_camera_frame = self._get_events_in_camera_frame(obs)
-                mask_event = np.logical_and(np.abs(events_camera_frame.lon) <= self.max_offset, np.abs(events_camera_frame.lat) <= self.max_offset)
+                mask_event = np.logical_and(np.abs(events_camera_frame.lon) <= self.max_offset,
+                                            np.abs(events_camera_frame.lat) <= self.max_offset)
                 distrib, _ = np.histogram(obs.events.energy[mask_event], energy_axis_computation.edges)
                 data_energy_distribution += distrib
             energy_axis_computation = self._compute_dynamic_energy_axis(energy_axis_computation,
