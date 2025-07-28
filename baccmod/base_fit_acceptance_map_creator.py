@@ -54,7 +54,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         activate_interpolation_cleaning: bool = False,
         interpolation_cleaning_energy_relative_threshold: float = 1e-4,
         interpolation_cleaning_spatial_relative_threshold: float = 1e-2,
-        name_normalisation_parameter: str = None,
+        list_name_normalisation_parameter: List[str] = None,
     ) -> None:
         """
         Abstract base class for fitting.  All the “core‐Poisson‐fit” logic lives here.
@@ -98,8 +98,8 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
         interpolation_cleaning_spatial_relative_threshold: float, optional
             To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
-        name_normalisation_parameter: string, optional
-            All the parameters containing this string in the model will be automatically normalised based on overall counts at the start of the fit
+        list_name_normalisation_parameter: list of string, optional
+            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit
         """
 
         # Call the “stack”‐only constructor in Grid3D, to set up geometry, offset axes, etc.
@@ -124,7 +124,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         )
 
         self.sq_rel_residuals = {"mean": [], "std": []}
-        self.name_normalisation_parameter = name_normalisation_parameter
+        self.list_name_normalisation_parameter = list_name_normalisation_parameter
 
     @abstractmethod
     def create_acceptance_map(self, observations):
@@ -169,10 +169,10 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         model_init = model.copy()
 
         # Correct normalisation of the model
-        if self.name_normalisation_parameter is not None:
+        if self.list_name_normalisation_parameter is not None and len(self.list_name_normalisation_parameter) > 0:
             # Compute correction
             init_count_model = np.sum(model_init(*coords)*exp_correction)
-            correction_norm = np.sum(count_map)/init_count_model
+            correction_norm = np.sum(count_map)/(init_count_model*len(self.list_name_normalisation_parameter))
 
             # build list of free parameters
             tied = model_init.tied or {}
@@ -181,7 +181,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
             # Apply correction
             for p in free_params:
-                if self.name_normalisation_parameter in p:
+                if p in self.list_name_normalisation_parameter:
                     setattr(model_init, p, getattr(model_init, p)*correction_norm)
 
         # Fit the model

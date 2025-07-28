@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------------
 
 import logging
+from typing import List
 
 import astropy.units as u
 import gammapy
@@ -44,7 +45,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
         activate_interpolation_cleaning: bool = False,
         interpolation_cleaning_energy_relative_threshold: float = 1e-4,
         interpolation_cleaning_spatial_relative_threshold: float = 1e-2,
-        name_normalisation_parameter: str = 'amplitude',
+        list_name_normalisation_parameter: List[str] = None,
         model_to_fit: Fittable2DModel = Gaussian2D()
     ) -> None:
         """
@@ -90,8 +91,8 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
             To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
         interpolation_cleaning_spatial_relative_threshold: float, optional
             To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
-        name_normalisation_parameter: string, optional
-            All the parameters containing this string in the model will be automatically normalised based on overall counts at the start of the fit
+        list_name_normalisation_parameter: list of string, optional
+            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit
         model_to_fit: Fittable2DModel, optional
             The model to fit to the data
         """
@@ -113,7 +114,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
             activate_interpolation_cleaning=activate_interpolation_cleaning,
             interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
             interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold,
-            name_normalisation_parameter=name_normalisation_parameter
+            list_name_normalisation_parameter=list_name_normalisation_parameter
         )
 
         self.model_to_fit = model_to_fit
