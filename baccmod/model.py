@@ -13,7 +13,7 @@ Define the background model functions for fits and associated seeds and bounds.
 """
 import numpy as np
 
-__all__ = ['BilinearGradient']
+__all__ = ['BilinearGradient', 'Gaussian2D']
 
 from astropy.modeling import Fittable2DModel, Parameter
 from astropy.modeling.functional_models import Gaussian2D
@@ -31,6 +31,7 @@ class BilinearGradient(Fittable2DModel):
     def fit_deriv(x, y, x_gradient, y_gradient):
         """
         Partial derivatives as function of the parameters of the model
+        This function is not required for the fitting process of BAccMod but allow the model to be fully compatible with astropy.
         """
         d_x_gradient = x * (1 + y * y_gradient)
         d_y_gradient = y * (1 + x * x_gradient)
