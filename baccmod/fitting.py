@@ -97,7 +97,7 @@ class PoissonFitter():
             mu = model_copy(*flat_coords) * flat_exposure_correction
             return -np.sum(self._log_poisson(mu, flat_data, log_fact))
 
-        # wrapper to accept both positional and keyword args
+        # wrapper to accept either positional arguments or keyword arguments (exclusives)
         def fcn_wrapper(*args, **kwargs):
             if args:
                 pars = dict(zip(free_params, args))
