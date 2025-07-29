@@ -4,6 +4,7 @@ import os
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import EarthLocation, SkyCoord
+from astropy.modeling.functional_models import Gaussian2D
 from gammapy.data import DataStore
 from gammapy.irf import Background3D, Background2D
 from gammapy.maps import MapAxis
@@ -61,10 +62,16 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit(self):
+        model = Gaussian2D(x_mean=0, y_mean=0, x_stddev=1, y_stddev=1, theta=0)
+        model.x_mean.bounds = [-1, 1]
+        model.y_mean.bounds = [-1, 1]
+        model.x_stddev.bounds = [0, 5]
+        model.y_stddev.bounds = [0, 5]
         bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                    offset_axis=self.offset_axis,
                                                    oversample_map=5,
                                                    exclude_regions=self.exclude_region_PKS_2155,
+                                                   model_to_fit=model,
                                                    list_name_normalisation_parameter=['amplitude',])
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
