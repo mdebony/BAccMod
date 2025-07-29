@@ -64,7 +64,7 @@ class PoissonFitter():
         log_fact = self._log_factorial(flat_data)
 
         # gather constraint info
-        tied = model_copy.tied or {}
+        tied = model_copy.tied
 
         # build list of free parameters
         all_params = list(model_copy.param_names)
