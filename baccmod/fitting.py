@@ -11,6 +11,7 @@ from typing import List
 
 import numpy as np
 from astropy.modeling import Model
+from astropy.modeling.fitting import UnsupportedConstraintError
 from iminuit import Minuit
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class PoissonFitter():
                     ctx = {p: getattr(model_copy, p).value for p in all_params}
                     val = eval(rule, {}, ctx)
                 else:
-                    continue
+                    raise UnsupportedConstraintError(f'Unsupported type of tied constraint for {name}')
                 setattr(model_copy, name, val)
 
         # negative log‑likelihood
