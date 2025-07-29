@@ -29,6 +29,9 @@ class BilinearGradient(Fittable2DModel):
 
     @staticmethod
     def fit_deriv(x, y, x_gradient, y_gradient):
+        """
+        Partial derivatives as function of the parameters of the model
+        """
         d_x_gradient = x * (1 + y * y_gradient)
         d_y_gradient = y * (1 + x * x_gradient)
         return [d_x_gradient, d_y_gradient]
