@@ -175,12 +175,12 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             correction_norm = np.sum(count_map)/init_count_model
 
             # build list of free parameters
-            tied = model_init.tied or {}
+            tied = model_init.tied
             all_params = list(model_init.param_names)
-            free_params = [p for p in all_params if (p not in tied) or (not tied[p]) and (not model_init.fixed.get(p, False))]
+            indep_params = [p for p in all_params if (p not in tied) or (not tied[p]) and (not model_init.fixed.get(p, False))]
 
             # Apply correction
-            for p in free_params:
+            for p in indep_params:
                 if p in self.list_name_normalisation_parameter:
                     setattr(model_init, p, getattr(model_init, p)*correction_norm)
 
