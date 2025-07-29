@@ -68,12 +68,12 @@ class PoissonFitter():
 
         # build list of free parameters
         all_params = list(model_copy.param_names)
-        free_params = [p for p in all_params if (p not in tied) or (not tied[p])]
+        indep_params = [p for p in all_params if (p not in tied) or (not tied[p])]
 
         # initial seeds, bounds, fixed flags
-        seeds  = {p: getattr(model_copy, p).value for p in free_params}
-        bounds = {p: model_copy.bounds.get(p, (None, None)) for p in free_params}
-        fixed  = {p: model_copy.fixed.get(p, False)         for p in free_params}
+        seeds  = {p: getattr(model_copy, p).value for p in indep_params}
+        bounds = {p: model_copy.bounds.get(p, (None, None)) for p in indep_params}
+        fixed  = {p: model_copy.fixed.get(p, False)         for p in indep_params}
 
         # helper to apply parameters and tied relation
         def apply_params_and_tied(pars):
@@ -100,17 +100,17 @@ class PoissonFitter():
         # wrapper to accept either positional arguments or keyword arguments (exclusives)
         def fcn_wrapper(*args, **kwargs):
             if args:
-                pars = dict(zip(free_params, args))
+                pars = dict(zip(indep_params, args))
             else:
                 pars = kwargs
             return neg_logL(**pars)
 
         # set up Minuit
-        m = Minuit(fcn_wrapper, name=free_params, **seeds)
+        m = Minuit(fcn_wrapper, name=indep_params, **seeds)
         m.errordef = Minuit.LIKELIHOOD
 
         # apply bounds & fixed
-        for p in free_params:
+        for p in indep_params:
             m.limits[p] = bounds[p]
             if fixed[p]:
                 m.fixed[p] = True
