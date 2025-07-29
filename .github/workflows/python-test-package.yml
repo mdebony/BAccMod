@@ -9,7 +9,9 @@
 name: Create and test the Python Package
 
 on:
-  pull_request
+  - pull_request
+  - push
+  - workflow_dispatch
 
 permissions:
   contents: read
