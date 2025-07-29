@@ -13,11 +13,9 @@ Define the background model functions for fits and associated seeds and bounds.
 """
 import numpy as np
 
-__all__ = ['BilinearGradient', 'Gaussian2D']
+__all__ = ['BilinearGradient']
 
 from astropy.modeling import Fittable2DModel, Parameter
-from astropy.modeling.functional_models import Gaussian2D
-
 
 class BilinearGradient(Fittable2DModel):
     x_gradient = Parameter()
