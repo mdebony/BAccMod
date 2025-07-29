@@ -88,6 +88,8 @@ class PoissonFitter():
                 elif isinstance(rule, str):
                     ctx = {p: getattr(model_copy, p).value for p in all_params}
                     val = eval(rule, {}, ctx)
+                elif not rule:
+                    continue
                 else:
                     raise UnsupportedConstraintError(f'Unsupported type of tied constraint for {name}')
                 setattr(model_copy, name, val)
