@@ -6,29 +6,21 @@
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 # ---------------------------------------------------------------------
-import numpy as np
 import logging
 from typing import List
+
+import numpy as np
 from astropy.modeling import Model
-from astropy.modeling.fitting import Fitter
 from iminuit import Minuit
 
 logger = logging.getLogger(__name__)
 
-class PoissonFitter(Fitter):
+class PoissonFitter():
     supported_constraints = ['fixed', 'bounds', 'tied']
     supports_uncertainties = False
 
     def __init__(self):
-        super().__init__(optimizer=self._optimizer, statistic=self._statistic)
-
-    @staticmethod
-    def _optimizer():
-        raise NotImplementedError()
-
-    @staticmethod
-    def _statistic(self):
-        raise NotImplementedError()
+        super().__init__()
 
     def __call__(self,
                  model: Model,
