@@ -63,10 +63,11 @@ class TestIntegrationClass:
 
     def test_integration_spatial_fit(self):
         model = Gaussian2D(x_mean=0, y_mean=0, x_stddev=1, y_stddev=1, theta=0)
+        model.amplitude.bounds = [0.5, None]
         model.x_mean.bounds = [-1, 1]
         model.y_mean.bounds = [-1, 1]
-        model.x_stddev.bounds = [0, 5]
-        model.y_stddev.bounds = [0, 5]
+        model.x_stddev.bounds = [0.01, 5]
+        model.y_stddev.bounds = [0.01, 5]
         bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                    offset_axis=self.offset_axis,
                                                    oversample_map=5,
@@ -77,7 +78,8 @@ class TestIntegrationClass:
         assert type(background_model) is Background3D
 
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
-        relative_error = np.abs(background_model.data - reference.data) / reference.data
+        mask = reference.data != 0
+        relative_error = np.abs(background_model.data - reference.data)[mask] / reference.data[mask]
         if np.sum(relative_error > 1e-4) > 0:
             logging.warning(f'Maximum relative error : {np.nanmax(relative_error)}, fraction above 1e-3 : {np.sum(relative_error > 1e-3)/relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2)/relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1)/relative_error.size}')
         assert np.all(np.isclose(background_model.data, reference.data,
