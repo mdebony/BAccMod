@@ -68,6 +68,8 @@ class TestIntegrationClass:
         model.y_mean.bounds = [-1, 1]
         model.x_stddev.bounds = [0.01, 5]
         model.y_stddev.bounds = [0.01, 5]
+        model.y_stddev.tied = lambda model: model.x_stddev.value
+        model.theta.fixed = True
         bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
                                                    offset_axis=self.offset_axis,
                                                    oversample_map=5,
