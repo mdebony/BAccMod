@@ -186,7 +186,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
         # Fit the model
         fitter = PoissonFitter()
-        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction)
+        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
 
         # Collect results & (optionally) track residuals
         if logger.getEffectiveLevel() <= logging.INFO:
