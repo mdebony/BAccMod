@@ -60,14 +60,8 @@ class PoissonFitter():
         if exposure_correction is None:
             exposure_correction = np.ones_like(data, dtype=np.float64)
 
-        # flatten coords & data
-        flat_coords = [c.ravel() for c in coords]
-        flat_data   = data.ravel().astype(int)
-        flat_exposure_correction = exposure_correction.ravel()
-        flat_mask=mask.ravel()
-
         # precompute log‑factorial
-        log_fact = self._log_factorial(flat_data)
+        log_fact = self._log_factorial(data)
 
         # gather constraint info
         tied = model_copy.tied
@@ -102,8 +96,8 @@ class PoissonFitter():
         # negative log‑likelihood
         def neg_logL(**pars):
             apply_params_and_tied(pars)
-            mu = model_copy(*flat_coords) * flat_exposure_correction
-            return -np.sum(self._log_poisson(mu[flat_mask], flat_data[flat_mask], log_fact[flat_mask]))
+            mu = model_copy(*coords) * exposure_correction
+            return -np.sum(self._log_poisson(mu[mask], data[mask], log_fact[mask]))
 
         # wrapper to accept either positional arguments or keyword arguments (exclusives)
         def fcn_wrapper(*args, **kwargs):
