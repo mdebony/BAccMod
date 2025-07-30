@@ -28,6 +28,7 @@ class PoissonFitter():
                  *coords: List[np.ndarray],
                  data: np.ndarray,
                  exposure_correction: np.ndarray = None,
+                 mask: np.ndarray = None,
                  maxiter: int = 1000) -> Model:
         """
         Fit the model to the data following poisson likelihood statistics and using iminuit
@@ -42,8 +43,11 @@ class PoissonFitter():
                 Integer counts array of N dimension
             exposure_correction: np.array
                 Floating point value to correct for difference of exposure in the data
+            mask : np.array
+                Mask to remove areas with no exposure
             maxiter : int
-                maximum number of iteration for fitting, as the fitting is performed in two steps, could be the double of this value in practice
+                maximum number of iteration for fitting, as the fitting is performed in two steps,
+                could be the double of this value in practice
 
         Returns
         -------
@@ -60,6 +64,7 @@ class PoissonFitter():
         flat_coords = [c.ravel() for c in coords]
         flat_data   = data.ravel().astype(int)
         flat_exposure_correction = exposure_correction.ravel()
+        flat_mask=mask.ravel()
 
         # precompute log‑factorial
         log_fact = self._log_factorial(flat_data)
@@ -98,7 +103,7 @@ class PoissonFitter():
         def neg_logL(**pars):
             apply_params_and_tied(pars)
             mu = model_copy(*flat_coords) * flat_exposure_correction
-            return -np.sum(self._log_poisson(mu, flat_data, log_fact))
+            return -np.sum(self._log_poisson(mu[flat_mask], flat_data[flat_mask], log_fact[flat_mask]))
 
         # wrapper to accept either positional arguments or keyword arguments (exclusives)
         def fcn_wrapper(*args, **kwargs):
