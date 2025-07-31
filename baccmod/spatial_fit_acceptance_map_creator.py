@@ -157,7 +157,7 @@ class SpatialFitAcceptanceMapCreator(BaseFitAcceptanceMapCreator):
                 f"Fitting background, energy bin [{self.energy_axis.edges[e]:.2f}, "
                 f"{self.energy_axis.edges[e + 1]:.2f}]"
             )
-            corrected_counts[e] = self.fit_background(
+            corrected_counts[e] = self._fit_background(
                 self.model_to_fit,
                 x, y,
                 count_map=count_background[e].astype(int),
