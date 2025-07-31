@@ -18,7 +18,7 @@ import numpy as np
 from astropy.modeling import Model
 from gammapy.maps import MapAxis
 
-from .fitting import PoissonFitter
+from .fitting import poisson_fitter
 from .grid3d_acceptance_map_creator import Grid3DAcceptanceMapCreator
 
 logger = logging.getLogger(__name__)
@@ -190,8 +190,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
                     setattr(model_init, p, getattr(model_init, p)*correction_norm)
 
         # Fit the model
-        fitter = PoissonFitter()
-        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
+        best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
 
         # Collect results & (optionally) track residuals
         if logger.getEffectiveLevel() <= logging.INFO:
@@ -202,7 +201,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             self.sq_rel_residuals["mean"].append(np.mean(sq_rel_resid))
             self.sq_rel_residuals["std"].append(np.std(sq_rel_resid))
             param_dict = dict(zip(best_model.param_names, best_model.parameters))
-            logger.info(f"Fit results ({type(model_gaussian).__name__}): {param_dict}")
+            logger.info(f"Fit results ({type(best_model).__name__}): {param_dict}")
             logger.debug(
                 f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
             )
