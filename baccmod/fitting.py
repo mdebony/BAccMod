@@ -92,11 +92,8 @@ def poisson_fitter(model: Model,
         return -np.sum(log_poisson(mu[mask], data[mask], log_fact[mask]))
 
     # wrapper to accept either positional arguments or keyword arguments (exclusives)
-    def fcn_wrapper(*args, **kwargs):
-        if args:
-            pars = dict(zip(indep_params, args))
-        else:
-            pars = kwargs
+    def fcn_wrapper(*args):
+        pars = dict(zip(indep_params, args))
         return neg_logL(**pars)
 
     # set up Minuit
