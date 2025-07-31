@@ -182,7 +182,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             # build list of free parameters
             tied = model_init.tied
             all_params = list(model_init.param_names)
-            indep_params = [p for p in all_params if (p not in tied) or (not tied[p])]
+            indep_params = [p for p in all_params if not tied[p]]
 
             # Apply correction
             for p in indep_params:
