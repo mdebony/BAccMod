@@ -134,7 +134,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         """
         pass
 
-    def fit_background(self, model: Model, *coords: List[np.ndarray], count_map: np.ndarray, exp_map_total: np.ndarray, exp_map: np.ndarray) -> np.ndarray:
+    def _fit_background(self, model: Model, *coords: List[np.ndarray], count_map: np.ndarray, exp_map_total: np.ndarray, exp_map: np.ndarray) -> np.ndarray:
         """
         Perform a Poisson fit on the given map (could be 1D, 2D or 3D), given
         the fine‐binned exposure (exp_map) and total‐exposure (exp_map_total),
