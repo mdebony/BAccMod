@@ -60,7 +60,7 @@ def poisson_fitter(model: Model,
 
     # build list of free parameters
     all_params = list(model_copy.param_names)
-    indep_params = [p for p in all_params if (p not in tied) or (not tied[p])]
+    indep_params = [p for p in all_params if not tied[p]]
 
     # initial seeds, bounds, fixed flags
     seeds  = {p: getattr(model_copy, p).value for p in indep_params}
