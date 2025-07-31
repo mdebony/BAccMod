@@ -202,7 +202,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             self.sq_rel_residuals["mean"].append(np.mean(sq_rel_resid))
             self.sq_rel_residuals["std"].append(np.std(sq_rel_resid))
             param_dict = dict(zip(best_model.param_names, best_model.parameters))
-            logger.info(f"Fit results ({model.__name__}): {param_dict}")
+            logger.info(f"Fit results ({type(model_gaussian).__name__}): {param_dict}")
             logger.debug(
                 f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
             )
