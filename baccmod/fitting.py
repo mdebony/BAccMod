@@ -28,6 +28,7 @@ class PoissonFitter():
                  *coords: List[np.ndarray],
                  data: np.ndarray,
                  exposure_correction: np.ndarray = None,
+                 mask: np.ndarray = None,
                  maxiter: int = 1000) -> Model:
         """
         Fit the model to the data following poisson likelihood statistics and using iminuit
@@ -42,8 +43,11 @@ class PoissonFitter():
                 Integer counts array of N dimension
             exposure_correction: np.array
                 Floating point value to correct for difference of exposure in the data
+            mask : np.array
+                Mask to remove areas with no exposure
             maxiter : int
-                maximum number of iteration for fitting, as the fitting is performed in two steps, could be the double of this value in practice
+                maximum number of iteration for fitting, as the fitting is performed in two steps,
+                could be the double of this value in practice
 
         Returns
         -------
@@ -56,13 +60,8 @@ class PoissonFitter():
         if exposure_correction is None:
             exposure_correction = np.ones_like(data, dtype=np.float64)
 
-        # flatten coords & data
-        flat_coords = [c.ravel() for c in coords]
-        flat_data   = data.ravel().astype(int)
-        flat_exposure_correction = exposure_correction.ravel()
-
         # precompute log‑factorial
-        log_fact = self._log_factorial(flat_data)
+        log_fact = self._log_factorial(data)
 
         # gather constraint info
         tied = model_copy.tied
@@ -97,8 +96,8 @@ class PoissonFitter():
         # negative log‑likelihood
         def neg_logL(**pars):
             apply_params_and_tied(pars)
-            mu = model_copy(*flat_coords) * flat_exposure_correction
-            return -np.sum(self._log_poisson(mu, flat_data, log_fact))
+            mu = model_copy(*coords) * exposure_correction
+            return -np.sum(self._log_poisson(mu[mask], data[mask], log_fact[mask]))
 
         # wrapper to accept either positional arguments or keyword arguments (exclusives)
         def fcn_wrapper(*args, **kwargs):
@@ -151,4 +150,7 @@ class PoissonFitter():
 
     @staticmethod
     def _log_poisson(mu: np.ndarray, x: np.ndarray, log_factorial_x: np.ndarray) -> np.ndarray:
+        if np.any(mu <= 0):
+            logger.warning('log poisson received a zero or negative value.')
+            mu[mu <= 0] = np.min(mu[mu > 0])/2
         return -mu + x * np.log(mu) - log_factorial_x

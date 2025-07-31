@@ -159,10 +159,15 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             The best‐fit model of counts (on the same pixel grid as count_map).
         """
 
+        total_counts = np.sum(count_map)
+        # Skip the fit if there are no events
+        if total_counts == 0:
+            return count_map
+
         # Compute exposure correction
         mask = exp_map_total > 0
         exp_map_total_safe = exp_map_total.copy()
-        exp_map_total_safe[mask] = 1
+        exp_map_total_safe[~mask] = 1
         exp_correction = exp_map / exp_map_total_safe
 
         # Initialise the model
@@ -172,7 +177,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
         if self.list_name_normalisation_parameter is not None and len(self.list_name_normalisation_parameter) > 0:
             # Compute correction
             init_count_model = np.sum(model_init(*coords)*exp_correction)
-            correction_norm = np.sum(count_map)/init_count_model
+            correction_norm = total_counts/init_count_model
 
             # build list of free parameters
             tied = model_init.tied
@@ -186,7 +191,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
         # Fit the model
         fitter = PoissonFitter()
-        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction)
+        best_model = fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
 
         # Collect results & (optionally) track residuals
         if logger.getEffectiveLevel() <= logging.INFO:
