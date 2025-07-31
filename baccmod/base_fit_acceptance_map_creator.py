@@ -130,7 +130,7 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
     def create_acceptance_map(self, observations):
         """
         Subclasses must implement: run self._create_base_computation_map(), then
-        call self.fit_background() for each energy slice, and finally pack into Background3D.
+        call self.fit_background() for each slice (energy, spatial or all depending on the implementation), and finally pack into Background3D.
         """
         pass
 
