@@ -51,7 +51,8 @@ class TestIntegrationClass:
     relative_tolerance = 5e-2
 
     def _print_model_precision(self, background_model, reference):
-        relative_error = np.abs(background_model.data - reference.data) / reference.data
+        mask = reference.data != 0
+        relative_error = np.abs(background_model.data - reference.data)[mask] / reference.data[mask]
         if np.sum(relative_error > self.relative_tolerance) > 0:
             logging.warning(
                 f'Maximum relative error : {np.nanmax(relative_error)}, fraction above threshold {self.relative_tolerance} : {np.sum(relative_error > self.relative_tolerance) / relative_error.size}, fraction above 1e-3 : {np.sum(relative_error > 1e-3) / relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2) / relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1) / relative_error.size}')
