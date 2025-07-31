@@ -185,9 +185,11 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
             indep_params = [p for p in all_params if not tied[p]]
 
             # Apply correction
-            for p in indep_params:
-                if p in self.list_name_normalisation_parameter:
+            for p in self.list_name_normalisation_parameter:
+                if p in indep_params:
                     setattr(model_init, p, getattr(model_init, p)*correction_norm)
+                else:
+                    logger.warning(f'{p} is not a parameters of the model and therefore normalisation was not adjusted for this parameter')
 
         # Fit the model
         best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
