@@ -9,12 +9,36 @@
 project = 'BAccMod'
 copyright = '2025, Mathieu de Bony de Lavergne, Gabriel Emery, Marie-Sophie Carrasco'
 author = 'Mathieu de Bony de Lavergne, Gabriel Emery, Marie-Sophie Carrasco'
-release = '0.4.0'
+release = '0.4.0_dev'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = [
+    "sphinx.ext.autodoc",        # core: pull docstrings
+    "sphinx.ext.napoleon",       # support Google / NumPy style docstrings
+    "sphinx.ext.viewcode",       # add links to source
+    "sphinx.ext.autosummary",    # optional: summary tables
+]
+
+# -- Napoleon settings (if you use NumPy or Google style docstrings) -----
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = True
+napoleon_include_private_with_doc = False
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = False
+napoleon_use_ivar = False
+napoleon_use_param = True
+napoleon_use_rtype = True
+
+# -- General configuration -------------------------------------------------
+autosummary_generate = True  # turn on autosummary stub generation
+
+# If your package is not on sys.path by default, insert it. Example assuming docs/ is sibling to package:
+import os
+import sys
+sys.path.insert(0, os.path.abspath(".."))  # adjust if needed
 
 templates_path = ['_templates']
 exclude_patterns = []
