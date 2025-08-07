@@ -12,9 +12,9 @@ from typing import List, Optional, Tuple
 
 import astropy.units as u
 import numpy as np
-from gammapy.data import Observation, Observations
-from gammapy.irf import Background2D
+from gammapy.data import Observations
 from gammapy.datasets import MapDataset
+from gammapy.irf import Background2D
 from gammapy.maps import MapAxis, WcsNDMap, WcsGeom
 from regions import CircleAnnulusSkyRegion, CircleSkyRegion, SkyRegion
 
