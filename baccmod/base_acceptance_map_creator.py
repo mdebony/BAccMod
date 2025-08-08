@@ -481,7 +481,8 @@ class BaseAcceptanceMapCreator(ABC):
         """
         pass
 
-    def _compute_dynamic_energy_axis(self, base_energy_axis: MapAxis, data_energy_distribution: np.ndarray, nb_spatial_bin: int) -> MapAxis:
+
+    def _compute_dynamic_energy_axis(self, base_energy_axis: MapAxis, data: np.ndarray, nb_spatial_bin: int) -> MapAxis:
         """
         Compute a new energy axis from the base one to better have a more uniform number of event in each bin
 
@@ -489,7 +490,7 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         base_energy_axis: gammapy.maps.MapAxis
             the base energy axis
-        data_energy_distribution : np.ndarray
+        data : np.ndarray
             the count distribution only binned in energy (using base_energy_axis binning)
         nb_spatial_bin : int
             the number of spatial bin covering the data_energy_distribution
@@ -500,46 +501,51 @@ class BaseAcceptanceMapCreator(ABC):
             the optimal energy axis
         """
 
-        edges_energy_axis = list(np.asarray(base_energy_axis.edges.to_value(u.TeV), dtype=np.float64))
-        log_edges_energy_axis = list(np.log10(np.asarray(base_energy_axis.edges.to_value(u.TeV), dtype=np.float64)))
-        data = data_energy_distribution.copy()
 
-        abs_eps_comparison = 1e-7
-        rel_eps_comparison = 1+1e-7
+        edges_energy_axis = base_energy_axis.edges
 
-        i = len(data) - 1
-        while i >= 0:
-            data_cumsum = np.cumsum(data)
+        cumsumdata =np.cumsum(data)/nb_spatial_bin
+        rev_cumsumdata = np.cumsum(data[::-1])[::-1]/nb_spatial_bin
+        # Evaluate the bins with only zeros at the start and end of the distribution
+        nzl=np.nonzero(cumsumdata==0)[0]
+        nzh=np.nonzero(rev_cumsumdata==0)[0]
 
-            # If all data in this bin and at lower energy are 0 we stop there
-            if data_cumsum[i] == 0:
-                break
-            if len(data) == 1:
-                logger.warning('Dynamic binning stoped early as all bin have bin merged in one bin')
-                break
+        log_edges=np.log10(edges_energy_axis.to_value(u.TeV))
 
-            # Test if we are above the target statistics for this bin
-            if data[i] < self.dynamic_energy_axis_target_statistics*nb_spatial_bin:
-                # If it's not the lowest bin and there are non-zero data below, we merged with the bin below
-                if i > 0 and data_cumsum[i-1] > 0 and (log_edges_energy_axis[i+1]-log_edges_energy_axis[i-1]) < (self.dynamic_energy_axis_maximum_wideness_bin*rel_eps_comparison+abs_eps_comparison):
-                    edges_energy_axis.pop(i)
-                    log_edges_energy_axis.pop(i)
-                    data = combine_adjacent_ndarray(data, i-1)
-                    i -= 1
-                # Otherwise we merge with the bin above if able
-                elif i < (len(data)-1) and (log_edges_energy_axis[i+2]-log_edges_energy_axis[i]) < (self.dynamic_energy_axis_maximum_wideness_bin*rel_eps_comparison+abs_eps_comparison):
-                    edges_energy_axis.pop(i+1)
-                    log_edges_energy_axis.pop(i+1)
-                    data = combine_adjacent_ndarray(data, i)
-                # If not able to reach target statistics, we raise a warning and continue
-                else:
-                    logger.warning('Dynamic energy binning is unable to reach target statistics due to bin maximum bin wideness')
-                    i -= 1
-            # If test pass we continue
+
+        min_i = len(nzl)
+        i0=len(edges_energy_axis)-len(nzh)-1
+        i=i0
+        indexes_edges=[len(edges_energy_axis)-1]
+
+        # Evaluate bin edges fulfilling the dynamic criteria
+        while i>min_i:
+            # Index for the mean count criteria
+            j_counts = np.sum(rev_cumsumdata >= self.dynamic_energy_axis_target_statistics)-1
+            # Index for the max bin width criteria
+            j_maxw = np.sum(log_edges[i] - log_edges[:i-1] >= self.dynamic_energy_axis_maximum_wideness_bin)
+            if j_counts<min_i and j_maxw<min_i:
+                # Handle the last bin before the lower zeros, adding its lower edge and eventually merging with the previous bin
+                if i!=i0 and log_edges[indexes_edges[-2]] - log_edges[len(nzl)] < self.dynamic_energy_axis_maximum_wideness_bin:
+                    indexes_edges.pop(-1)
+                indexes_edges.append(len(nzl))
+                i=min_i-1
             else:
-                i -= 1
+                # Pick the first fulfilled criteria
+                if j_counts >= j_maxw:
+                    j=j_counts
+                else:
+                    j=j_maxw
+                    logger.warning(
+                        'Dynamic energy binning is unable to reach target statistics due to bin maximum bin wideness')
+                indexes_edges.append(j)
+                rev_cumsumdata -= rev_cumsumdata[j]
+                i=j
+        # Add all empty bins
+        indexes_edges=np.sort(np.concatenate([nzh, indexes_edges, nzl], dtype=int))
+        return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
 
-        return MapAxis.from_energy_edges(edges_energy_axis*u.TeV, name='energy')
+
 
     def _create_base_computation_map(self, observations: Observation) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
         """
