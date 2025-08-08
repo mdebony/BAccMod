@@ -323,7 +323,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
             for raw_obs in observations:
-                # Copy the observation to prevent modifyinf the original obs
+                # Copy the observation to prevent modifying the original
                 obs = raw_obs.copy(True)
 
                 # Filter events in exclusion regions
