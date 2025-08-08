@@ -47,8 +47,9 @@ class TestIntegrationClass:
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
     absolute_tolerance = 1e-15
+    relative_tolerance = 1e-7
     #TODO when issue with spatial fit is resolved, need to be lowered
-    relative_tolerance = 5e-2
+    relative_tolerance_fit_method = 5e-2
 
     def _print_model_precision(self, background_model, reference):
         mask = reference.data != 0
@@ -82,7 +83,7 @@ class TestIntegrationClass:
         self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
-                                 rtol=self.relative_tolerance))
+                                 rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -124,7 +125,7 @@ class TestIntegrationClass:
         self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
-                                 rtol=self.relative_tolerance))
+                                 rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D_irregular_computation_axis(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
