@@ -322,7 +322,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         livetime = 0. * u.s
 
         with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
-            for obs in observations:
+            for raw_obs in observations:
+                # Copy the observation to prevent modifying the original
+                obs = raw_obs.copy(True)
+
                 # Filter events in exclusion regions
                 geom = RegionGeom.from_regions(self.exclude_regions)
                 mask = geom.contains(obs.events.radec)
