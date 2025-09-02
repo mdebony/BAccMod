@@ -27,6 +27,7 @@ from gammapy.maps import WcsNDMap, WcsGeom, Map, MapAxis
 from regions import CircleSkyRegion, EllipseSkyRegion, SkyRegion
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
+from scipy.optimize import root_scalar, bracket
 
 from .bkg_collection import BackgroundCollectionZenith
 from .exception import BackgroundModelFormatException
@@ -56,6 +57,7 @@ class BaseAcceptanceMapCreator(ABC):
                  time_resolution: u.Quantity = 0.1 * u.s,
                  use_mini_irf_computation: bool = False,
                  mini_irf_time_resolution: u.Quantity = 1. * u.min,
+                 azimuth_east_west_splitting = False,
                  interpolation_zenith_type: str = 'linear',
                  activate_interpolation_zenith_cleaning: bool = False,
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
@@ -96,6 +98,8 @@ class BaseAcceptanceMapCreator(ABC):
             Should improve the accuracy of the model, especially at high zenith angle.
         mini_irf_time_resolution : astropy.units.Quantity, optional
             Time resolution to use for mini irf used for computation of the final background model
+        azimuth_east_west_splitting: bool, optional
+            if true will make a separate model of east oriented and west oriented data
         interpolation_zenith_type: str, optional
             Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
         activate_interpolation_zenith_cleaning: bool, optional
@@ -130,6 +134,9 @@ class BaseAcceptanceMapCreator(ABC):
         self.max_fraction_pixel_rotation_fov = max_fraction_pixel_rotation_fov
         self.time_resolution = time_resolution
         self.zenith_binning_run_splitting = zenith_binning_run_splitting
+
+        # Store azimuth splitting data
+        self.azimuth_east_west_splitting = azimuth_east_west_splitting
 
         # Store zenith binning parameters
         self.cos_zenith_binning_method = cos_zenith_binning_method
@@ -910,6 +917,70 @@ class BaseAcceptanceMapCreator(ABC):
 
         return raw_final_data_bkg * unit
 
+
+    def split_observations_azimuth(self, observations: Observations) -> Tuple[Observations, Observations]:
+        """
+        Split observations between east and west pointing ones, if a given observation cross the line, split it into two observations
+
+        Parameters
+        ----------
+        observations : gammapy.data.observations.Observations
+            The observations to process
+
+        Returns
+        -------
+        east_observations : gammapy.data.observations.Observations
+            Observations pointing east
+        west_observations : gammapy.data.observations.Observations
+            Observations pointing west
+
+        """
+
+        east_observations = Observations()
+        west_observations = Observations()
+
+        for obs in observations:
+            az_start = obs.get_pointing_altaz(obs.tstart).az
+            az_end = obs.get_pointing_altaz(obs.tstop).az
+            if az_start < 180.*u.deg and az_end < 180.*u.deg:
+                east_observations.append(obs)
+            elif az_start > 180.*u.deg and az_end > 180.*u.deg:
+                west_observations.append(obs)
+            # Case were the observation pass across the line and need to be split
+            else:
+                # Determine if the observations start east or west
+                if az_start < 180.*u.deg:
+                    east_west = True
+                else:
+                    east_west = False
+
+                # Determine if the line is crossed at az=0 or az=180
+                time_eval = np.linspace(obs.tstart, obs.tstop, num=100)
+                az_eval = obs.get_pointing_altaz(time_eval).az
+                if np.min(np.abs(az_eval-180.*u.deg)) < np.min(az_eval):
+                    az_split = 180.*u.deg
+                else:
+                    az_split = 0.*u.deg
+
+                # Search time for the split
+                def wrap_angle(angle):
+                    mask = angle > 270.*u.deg
+                    angle_final = angle.copy()
+                    angle_final[mask] -= 360*u.deg
+                    return angle_final
+                def root_function(t):
+                    tt = Time(t, format = 'unix')
+                    return (wrap_angle(obs.get_pointing_altaz(tt).az)-az_split).to_value(u.deg)
+                res = root_scalar(root_function, method='brentq', bracket=[obs.tstart.unix, obs.tstop.unix])
+                t_split = Time(res.root, format='unix')
+                if east_west:
+                    east_observations.append(obs.select_time([obs.tstart, t_split]))
+                    west_observations.append(obs.select_time([t_split, obs.tstop]))
+                else:
+                    west_observations.append(obs.select_time([obs.tstart, t_split]))
+                    east_observations.append(obs.select_time([t_split, obs.tstop]))
+
+            return east_observations, west_observations
 
     def create_acceptance_map_cos_zenith_interpolated(self,
                                                       observations: Observations,
