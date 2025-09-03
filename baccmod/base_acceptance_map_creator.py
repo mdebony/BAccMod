@@ -11,7 +11,7 @@
 import copy
 import logging
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, List, Optional, Union, Any, Dict
 
 import astropy.units as u
 import numpy as np
@@ -918,7 +918,7 @@ class BaseAcceptanceMapCreator(ABC):
         return raw_final_data_bkg * unit
 
 
-    def split_observations_azimuth(self, observations: Observations) -> Tuple[Observations, Observations]:
+    def split_observations_azimuth(self, observations: Observations) -> Tuple[Observations, Observations, List[Dict[str, Any]]]:
         """
         Split observations between east and west pointing ones, if a given observation cross the line, split it into two observations
 
@@ -933,11 +933,13 @@ class BaseAcceptanceMapCreator(ABC):
             Observations pointing east
         west_observations : gammapy.data.observations.Observations
             Observations pointing west
-
+        splitted_obs : List of Dict
+            Each dictionnary store an entry for an obs splitted in two (east and west)
         """
 
         east_observations = Observations()
         west_observations = Observations()
+        splitted_obs = []
 
         for obs in observations:
             az_start = obs.get_pointing_altaz(obs.tstart).az
@@ -976,11 +978,13 @@ class BaseAcceptanceMapCreator(ABC):
                 if east_west:
                     east_observations.append(obs.select_time([obs.tstart, t_split]))
                     west_observations.append(obs.select_time([t_split, obs.tstop]))
+                    splitted_obs.append({'id': obs.obs_id, 'east_time': t_split-obs.tstart, 'west_time': obs.tstop-t_split})
                 else:
                     west_observations.append(obs.select_time([obs.tstart, t_split]))
                     east_observations.append(obs.select_time([t_split, obs.tstop]))
+                    splitted_obs.append({'id': obs.obs_id, 'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split})
 
-            return east_observations, west_observations
+            return east_observations, west_observations, splitted_obs
 
     def create_acceptance_map_cos_zenith_interpolated(self,
                                                       observations: Observations,
