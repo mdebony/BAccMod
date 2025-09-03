@@ -15,8 +15,10 @@ from .exception import BackgroundModelFormatException
 
 logger = logging.getLogger(__name__)
 
+class BackgroundCollection:
+    pass
 
-class BackgroundCollectionZenith:
+class BackgroundCollectionZenith(BackgroundCollection):
 
     def __init__(self, bkg_dict: dict[float, BackgroundIRF] = None):
         """
@@ -89,3 +91,27 @@ class BackgroundCollectionZenith:
 
     def __len__(self):
         return len(self.bkg_dict)
+
+class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
+
+    def __init__(self, bkg_dict_east: dict[float, BackgroundIRF] = None, bkg_dict_west: dict[float, BackgroundIRF] = None):
+        """
+            Create the class for storing a collection of model for different zenith angle
+
+            Parameters
+            ----------
+            bkg_dict_east : dict of gammapy.irf.BackgroundIRF
+                The collection of model in a dictionary with as key the zenith angle (in degree) associated to the model pointing east
+            bkg_dict_west : dict of gammapy.irf.BackgroundIRF
+                The collection of model in a dictionary with as key the zenith angle (in degree) associated to the model pointing west
+        """
+        self.bkg_collection_east = BackgroundCollectionZenith(bkg_dict_east)
+        self.bkg_collection_west = BackgroundCollectionZenith(bkg_dict_west)
+
+    def get_collection_zenith(self, pointing:str):
+        if pointing == 'east':
+            return self.bkg_collection_east
+        elif pointing == 'west':
+            return self.bkg_collection_west
+        else:
+            raise Exception('Unknown bkg collection')
