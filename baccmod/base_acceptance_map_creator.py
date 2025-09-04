@@ -917,8 +917,8 @@ class BaseAcceptanceMapCreator(ABC):
 
         return raw_final_data_bkg * unit
 
-
-    def split_observations_azimuth(self, observations: Observations) -> Tuple[Observations, Observations, List[Dict[str, Any]]]:
+    @staticmethod
+    def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, List[Dict[str, Any]]]:
         """
         Split observations between east and west pointing ones, if a given observation cross the line, split it into two observations
 
