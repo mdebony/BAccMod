@@ -918,7 +918,7 @@ class BaseAcceptanceMapCreator(ABC):
         return raw_final_data_bkg * unit
 
     @staticmethod
-    def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, List[Dict[str, Any]]]:
+    def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, Dict[int, Dict[str, Any]]]:
         """
         Split observations between east and west pointing ones, if a given observation cross the line, split it into two observations
 
@@ -933,13 +933,13 @@ class BaseAcceptanceMapCreator(ABC):
             Observations pointing east
         west_observations : gammapy.data.observations.Observations
             Observations pointing west
-        splitted_obs : List of Dict
-            Each dictionnary store an entry for an obs splitted in two (east and west)
+        splitted_obs : Dict[int, Dict[str, Any]]
+            Each entry store the time of each split (east and west)
         """
 
         east_observations = Observations()
         west_observations = Observations()
-        splitted_obs = []
+        splitted_obs = {}
 
         for obs in observations:
             az_start = obs.get_pointing_altaz(obs.tstart).az
@@ -978,13 +978,56 @@ class BaseAcceptanceMapCreator(ABC):
                 if east_west:
                     east_observations.append(obs.select_time([obs.tstart, t_split]))
                     west_observations.append(obs.select_time([t_split, obs.tstop]))
-                    splitted_obs.append({'id': obs.obs_id, 'east_time': t_split-obs.tstart, 'west_time': obs.tstop-t_split})
+                    splitted_obs[obs.obs_id] = {'east_time': t_split-obs.tstart, 'west_time': obs.tstop-t_split}
                 else:
                     west_observations.append(obs.select_time([obs.tstart, t_split]))
                     east_observations.append(obs.select_time([t_split, obs.tstop]))
-                    splitted_obs.append({'id': obs.obs_id, 'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split})
+                    splitted_obs[obs.obs_id] = {'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split}
 
             return east_observations, west_observations, splitted_obs
+
+    @staticmethod
+    def _merge_model_azimuth(east_models: Dict[int, BackgroundIRF], west_models: Dict[int, BackgroundIRF], splitted_obs: Dict[int, Dict[str, Any]]) -> Dict[int, BackgroundIRF]:
+        """
+        Merge model, if a given observation cross the line, split it into two observations
+
+        Parameters
+        ----------
+        east_models : Dict[int, BackgroundIRF]
+            The collection of models for east pointing observations, keys are obs id
+        west_models : Dict[int, BackgroundIRF]
+            The collection of models for west pointing observations, keys are obs id
+        splitted_obs : Dict[int, Dict[str, Any]]
+            Each dictionnary store an entry for an obs splitted in two (east and west)
+
+        Returns
+        -------
+        merged_models: Dict[int, BackgroundIRF]
+            The merged collection of models, keys are obs id
+        """
+
+        merged_models = {}
+        list_split_obs = [k for k in splitted_obs.keys()]
+
+        for k in east_models:
+            if k in list_split_obs:
+                data = (east_models[k].data * splitted_obs[k]['east_time'] + west_models[k].data * splitted_obs[k]['west_time'])/(splitted_obs[k]['east_time'] + splitted_obs[k]['west_time'])
+                if type(east_models[k]) is Background2D:
+                    merged_models[k] = Background2D(axes=east_models[k].axes, data=data.to_value(u.dimensionless_unscaled)*east_models[k].unit)
+                elif type(east_models[k]) is Background3D:
+                    merged_models[k] = Background3D(axes=east_models[k].axes, data=data.to_value(u.dimensionless_unscaled)*east_models[k].unit)
+                else:
+                    raise Exception('Unknown background IRF')
+            else:
+                merged_models[k] = east_models[k]
+        for k in west_models:
+            if k in list_split_obs:
+                # Already merged nothing more is needed
+                continue
+            else:
+                merged_models[k] = west_models[k]
+
+        return merged_models
 
     def create_acceptance_map_cos_zenith_interpolated(self,
                                                       observations: Observations,
