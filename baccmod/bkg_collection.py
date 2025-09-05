@@ -151,24 +151,27 @@ class BackgroundCollection(ABC):
 
         # Perform the interpolation
         interp_func = self.get_interpolation_function(azimuth)
-        if self.interpolation_type == 'log':
-            interp_bkg = (10. ** interp_func(np.cos(zenith)))
-            interp_bkg[interp_bkg < 100 * self.threshold_value_log_interpolation] = 0.
-        elif self.interpolation_type == 'linear':
-            interp_bkg = interp_func(np.cos(zenith))
-            interp_bkg[interp_bkg < 0.] = 0.
+        if interp_func is None:
+            return self.get_model_from_collection(self.get_zenith(azimuth)[0], azimuth)
         else:
-            raise Exception("Unknown interpolation type")
-        if self.activate_interpolation_cleaning:
-            interp_bkg = self._background_cleaning(interp_bkg)
+            if self.interpolation_type == 'log':
+                interp_bkg = (10. ** interp_func(np.cos(zenith)))
+                interp_bkg[interp_bkg < 100 * self.threshold_value_log_interpolation] = 0.
+            elif self.interpolation_type == 'linear':
+                interp_bkg = interp_func(np.cos(zenith))
+                interp_bkg[interp_bkg < 0.] = 0.
+            else:
+                raise Exception("Unknown interpolation type")
+            if self.activate_interpolation_cleaning:
+                interp_bkg = self._background_cleaning(interp_bkg)
 
-        # Return the model
-        if type_model is Background2D:
-            return Background2D(axes=axes_model, data=interp_bkg * unit_model)
-        elif type_model is Background3D:
-            return Background3D(axes=axes_model, data=interp_bkg * unit_model, fov_alignment=FoVAlignment.ALTAZ)
-        else:
-            raise Exception('Unknown background format')
+            # Return the model
+            if type_model is Background2D:
+                return Background2D(axes=axes_model, data=interp_bkg * unit_model)
+            elif type_model is Background3D:
+                return Background3D(axes=axes_model, data=interp_bkg * unit_model, fov_alignment=FoVAlignment.ALTAZ)
+            else:
+                raise Exception('Unknown background format')
 
     def _background_cleaning(self, background_model):
         """
@@ -320,8 +323,10 @@ class BackgroundCollectionZenith(BackgroundCollection):
         Generate the interpolation functions
         """
         if not self.interpolation_function_exist:
-            self.interpolation_function = self._create_interpolation_function_from_zenith_collection(self.bkg_dict)
+            self.interpolation_function = self._create_interpolation_function_from_zenith_collection(self.bkg_dict) if len(self.bkg_dict) > 1 else None
             self.interpolation_function_exist = True
+        if self.interpolation_function_west is None:
+            logger.warning('Only one zenith bin, zenith interpolation deactivated')
 
     def get_interpolation_function(self, azimuth: u.Quantity=None):
         """
@@ -417,9 +422,13 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
         Generate the interpolation functions
         """
         if not self.interpolation_function_exist:
-            self.interpolation_function_east = self._create_interpolation_function_from_zenith_collection(self.bkg_dict_east)
-            self.interpolation_function_west = self._create_interpolation_function_from_zenith_collection(self.bkg_dict_west)
+            self.interpolation_function_east = self._create_interpolation_function_from_zenith_collection(self.bkg_dict_east) if len(self.bkg_dict_east) > 1 else None
+            self.interpolation_function_west = self._create_interpolation_function_from_zenith_collection(self.bkg_dict_west) if len(self.bkg_dict_west) > 1 else None
             self.interpolation_function_exist = True
+            if self.interpolation_function_east is None:
+                logger.warning('Only one zenith bin, zenith interpolation deactivated for east pointing')
+            if self.interpolation_function_west is None:
+                logger.warning('Only one zenith bin, zenith interpolation deactivated for west pointing')
 
     def get_interpolation_function(self, azimuth: u.Quantity):
         """
