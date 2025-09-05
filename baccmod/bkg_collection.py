@@ -325,7 +325,7 @@ class BackgroundCollectionZenith(BackgroundCollection):
         if not self.interpolation_function_exist:
             self.interpolation_function = self._create_interpolation_function_from_zenith_collection(self.bkg_dict) if len(self.bkg_dict) > 1 else None
             self.interpolation_function_exist = True
-        if self.interpolation_function_west is None:
+        if self.interpolation_function is None:
             logger.warning('Only one zenith bin, zenith interpolation deactivated')
 
     def get_interpolation_function(self, azimuth: u.Quantity=None):
