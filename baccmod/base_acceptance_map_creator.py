@@ -966,7 +966,7 @@ class BaseAcceptanceMapCreator(ABC):
                     east_observations.append(obs.select_time([t_split, obs.tstop]))
                     splitted_obs[obs.obs_id] = {'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split}
 
-            return east_observations, west_observations, splitted_obs
+        return east_observations, west_observations, splitted_obs
 
     @staticmethod
     def _merge_model_azimuth(east_models: Dict[int, BackgroundIRF], west_models: Dict[int, BackgroundIRF], splitted_obs: Dict[int, Dict[str, Any]]) -> Dict[int, BackgroundIRF]:
