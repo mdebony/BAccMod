@@ -444,7 +444,6 @@ class BaseAcceptanceMapCreator(ABC):
             The acceptance map calculated using the specific algorithm implemented by the subclass.
         """
 
-        unique_base_acceptance_map = self.create_acceptance_map(observations)
         if off_observations is None:
             off_observations = observations
         elif base_model is not None:
