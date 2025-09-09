@@ -174,20 +174,30 @@ class BaseAcceptanceMapCreator(ABC):
            The events coordinates for reference in camera frame
         """
 
-        # Transform to altaz frame
-        altaz_frame = AltAz(obstime=obs.events.time,
-                            location=obs.observatory_earth_location)
-        events_altaz = obs.events.radec.transform_to(altaz_frame)
-        pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
+        if len(obs.events.time) == 0:
+            # Handling the case with zero event in the observation
+            camera_frame = SkyOffsetFrame(origin=AltAz(alt=obs.get_pointing_altaz(obs.tmid).alt,
+                                                       az=obs.get_pointing_altaz(obs.tmid).az,
+                                                       obstime=obs.tmid,
+                                                       location=obs.observatory_earth_location),
+                                          rotation=[0., ] * u.deg)
+            return SkyCoord(lon=[]*u.deg, lat=[]*u.deg, frame=camera_frame)
 
-        # Rotation to transform to camera frame
-        camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
-                                                   az=pointing_altaz.az,
-                                                   obstime=obs.events.time,
-                                                   location=obs.observatory_earth_location),
-                                      rotation=[0., ] * len(obs.events.time) * u.deg)
+        else:
+            # Transform to altaz frame
+            altaz_frame = AltAz(obstime=obs.events.time,
+                                location=obs.observatory_earth_location)
+            events_altaz = obs.events.radec.transform_to(altaz_frame)
+            pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
 
-        return events_altaz.transform_to(camera_frame)
+            # Rotation to transform to camera frame
+            camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
+                                                       az=pointing_altaz.az,
+                                                       obstime=obs.events.time,
+                                                       location=obs.observatory_earth_location),
+                                          rotation=[0., ] * len(obs.events.time) * u.deg)
+
+            return events_altaz.transform_to(camera_frame)
 
     @staticmethod
     def _transform_obs_to_camera_frame(obs: Observation) -> Observation:
