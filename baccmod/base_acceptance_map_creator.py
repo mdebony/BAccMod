@@ -280,6 +280,48 @@ class BaseAcceptanceMapCreator(ABC):
 
         return exclude_region_camera_frame
 
+    @staticmethod
+    def _get_exclusion_region_circumscribed_circle(region: SkyRegion)->CircleSkyRegion:
+        """
+        For a given region return the circumscribed circle for this region
+        Parameters
+        ----------
+        region : SkyRegion
+            The region for which to compute the circumscribed circle
+
+        Returns
+        -------
+        circumscribed_circle: CircleSkyRegion
+
+        """
+        if isinstance(region, CircleSkyRegion):
+            return region
+        elif isinstance(region, EllipseSkyRegion):
+            return CircleSkyRegion(center=region.center, radius=max(region.width, region.height))
+        else:
+            raise Exception(f'{type(region)} region type not supported')
+
+    def _get_exclusion_regions_for_obs(self, obs:Observation)->List[SkyRegion]:
+        """
+        Return the list of exclusion region relevant to this observation
+        Parameters
+        ----------
+        obs : Observation
+            The region for which to compute the circumscribed circle
+
+        Returns
+        -------
+        final_exclusion_list: CircleSkyRegion
+
+        """
+        final_exclusion_list = []
+        for region in self.exclude_regions:
+            circumscribed_circle = self._get_exclusion_region_circumscribed_circle(region)
+            if circumscribed_circle.center.separation(obs.get_pointing_icrs(obs.tmid)) < (circumscribed_circle.radius + self.max_offset*np.sqrt(2))*1.1:
+                final_exclusion_list.append(region)
+
+        return final_exclusion_list
+
     def _create_map(self,
                     obs: Observation,
                     geom: WcsGeom,

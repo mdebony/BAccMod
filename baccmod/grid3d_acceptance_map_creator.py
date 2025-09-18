@@ -327,7 +327,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 obs = raw_obs.copy(True)
 
                 # Filter events in exclusion regions
-                geom = RegionGeom.from_regions(self.exclude_regions)
+                geom = RegionGeom.from_regions(self._get_exclusion_regions_for_obs(obs))
                 mask = geom.contains(obs.events.radec)
                 obs._events = obs.events.select_row_subset(~mask)
                 # Create a count map in camera frame
