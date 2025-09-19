@@ -281,7 +281,7 @@ class BaseAcceptanceMapCreator(ABC):
         return exclude_region_camera_frame
 
     @staticmethod
-    def _get_exclusion_region_circumscribed_circle(region: SkyRegion)->CircleSkyRegion:
+    def _get_circumscribed_circle_for_region(region: SkyRegion)->Tuple[SkyCoord, u.Quantity]:
         """
         For a given region return the circumscribed circle for this region
         Parameters
@@ -291,13 +291,15 @@ class BaseAcceptanceMapCreator(ABC):
 
         Returns
         -------
-        circumscribed_circle: CircleSkyRegion
-
+        center: SkyCoord
+            The center of the circumscribed circle
+        radius: u.Quantity
+            The radius of the circumscribed circle
         """
         if isinstance(region, CircleSkyRegion):
-            return region
+            return region.center, region.radius
         elif isinstance(region, EllipseSkyRegion):
-            return CircleSkyRegion(center=region.center, radius=max(region.width, region.height))
+            return region.center, max(region.width, region.height)
         else:
             raise Exception(f'{type(region)} region type not supported')
 
@@ -316,8 +318,8 @@ class BaseAcceptanceMapCreator(ABC):
         """
         final_exclusion_list = []
         for region in self.exclude_regions:
-            circumscribed_circle = self._get_exclusion_region_circumscribed_circle(region)
-            if circumscribed_circle.center.separation(obs.get_pointing_icrs(obs.tmid)) < (circumscribed_circle.radius + self.max_offset*np.sqrt(2))*1.1:
+            center, radius = self._get_circumscribed_circle_for_region(region)
+            if center.separation(obs.get_pointing_icrs(obs.tmid)) < (radius + self.max_offset*np.sqrt(2))*1.1:
                 final_exclusion_list.append(region)
 
         return final_exclusion_list
