@@ -34,8 +34,7 @@ from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
                       generate_irf_from_mini_irf,
-                      compute_neighbour_condition_validation,
-                      combine_adjacent_ndarray)
+                      compute_neighbour_condition_validation)
 
 logger = logging.getLogger(__name__)
 
