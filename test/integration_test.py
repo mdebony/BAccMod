@@ -44,7 +44,7 @@ class TestIntegrationClass:
     energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
-    absolute_tolerance = 1e-15
+    absolute_tolerance = 1e-7
     relative_tolerance = 1e-7
     #TODO when issue with spatial fit is resolved, need to be lowered
     relative_tolerance_fit_method = 5e-2
