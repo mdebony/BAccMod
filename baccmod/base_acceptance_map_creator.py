@@ -501,7 +501,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         edges_energy_axis = list(np.asarray(base_energy_axis.edges.to_value(u.TeV), dtype=np.float64))
-        log_edges_energy_axis = np.log10(np.asarray(base_energy_axis.edges.to_value(u.TeV), dtype=np.float64))
+        log_edges_energy_axis = list(np.log10(np.asarray(base_energy_axis.edges.to_value(u.TeV), dtype=np.float64)))
         data = data_energy_distribution.copy()
 
         i = len(data) - 1
@@ -520,11 +520,13 @@ class BaseAcceptanceMapCreator(ABC):
                 # If it's not the lowest bin and there are non-zero data below, we merged with the bin below
                 if i > 0 and data_cumsum[i-1] > 0 and (log_edges_energy_axis[i+1]-log_edges_energy_axis[i-1]) < self.dynamic_energy_axis_maximum_wideness_bin:
                     edges_energy_axis.pop(i)
+                    log_edges_energy_axis.pop(i)
                     data = combine_adjacent_ndarray(data, i-1)
                     i -= 1
                 # Otherwise we merge with the bin above if able
                 elif i < (len(data)-1) and (log_edges_energy_axis[i+2]-log_edges_energy_axis[i]) < self.dynamic_energy_axis_maximum_wideness_bin:
                     edges_energy_axis.pop(i+1)
+                    log_edges_energy_axis.pop(i+1)
                     data = combine_adjacent_ndarray(data, i)
                 # If not able to reach target statistics, we raise a warning and continue
                 else:
