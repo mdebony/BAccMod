@@ -50,6 +50,8 @@ class BaseAcceptanceMapCreator(ABC):
                  dynamic_energy_axis: bool = False,
                  dynamic_energy_axis_target_statistics: int = 500,
                  dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
+                 dynamic_energy_axis_merge_zeros_low_energy: bool = False,
+                 dynamic_energy_axis_merge_zeros_high_energy: bool = False,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
                  initial_cos_zenith_binning: float = 0.01,
@@ -84,6 +86,10 @@ class BaseAcceptanceMapCreator(ABC):
             the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
         dynamic_energy_axis_maximum_wideness_bin: float
             energy bin will not be merged if the resulting bin will be wider (in logarithmic space) than this value
+        dynamic_energy_axis_merge_zeros_low_energy: bool
+            decides if empty energy bins at low energy are merged during the dynamic binning
+        dynamic_energy_axis_merge_zeros_high_energy: bool
+            decides if empty energy bins at high energy are merged during the dynamic binning
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime', 'min_livetime_per_wobble', 'min_n_observation', 'min_n_observation_per_wobble'
         cos_zenith_binning_parameter_value : int, optional
@@ -129,6 +135,8 @@ class BaseAcceptanceMapCreator(ABC):
         self.dynamic_energy_axis = dynamic_energy_axis
         self.dynamic_energy_axis_target_statistics = dynamic_energy_axis_target_statistics
         self.dynamic_energy_axis_maximum_wideness_bin = dynamic_energy_axis_maximum_wideness_bin
+        self.dynamic_energy_axis_merge_zeros_low_energy = dynamic_energy_axis_merge_zeros_low_energy
+        self. dynamic_energy_axis_merge_zeros_high_energy = dynamic_energy_axis_merge_zeros_high_energy
 
         # Calculate map parameter
         self.n_bins_map = 2 * int(np.rint((self.max_offset / spatial_resolution).to(u.dimensionless_unscaled)))
@@ -540,7 +548,11 @@ class BaseAcceptanceMapCreator(ABC):
                 indexes_edges.append(j)
                 rev_cumsumdata -= rev_cumsumdata[j]
                 i = j
-        # Add all empty bins
+        # Add empty bins
+        if self.dynamic_energy_axis_merge_zeros_low_energy and len(zeros_lowE)>0:
+            zeros_lowE = np.array([0], dtype=int)
+        if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
+            zeros_highE = np.array([i0], dtype=int)
         indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
         return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
 
