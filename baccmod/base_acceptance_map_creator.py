@@ -508,6 +508,8 @@ class BaseAcceptanceMapCreator(ABC):
             the optimal energy axis
         """
 
+        # Relative numerical tolerance for the energy bin width limit
+        r_tol = 1 + 1e-7
 
         edges_energy_axis = base_energy_axis.edges
 
@@ -530,10 +532,10 @@ class BaseAcceptanceMapCreator(ABC):
             # Index for the mean count criteria
             j_counts = np.sum(rev_cumsumdata >= self.dynamic_energy_axis_target_statistics)-1
             # Index for the max bin width criteria
-            j_maxw = np.sum(log_edges[i] - log_edges[:i-1] >= self.dynamic_energy_axis_maximum_wideness_bin)
+            j_maxw = np.sum((log_edges[i] - log_edges[:i-1]) > self.dynamic_energy_axis_maximum_wideness_bin * r_tol)
             if j_counts < min_i and j_maxw < min_i:
                 # Handle the last bin before the lower zeros, adding its lower edge and eventually merging with the previous bin
-                if i!=i0 and log_edges[indexes_edges[-2]] - log_edges[min_i] < self.dynamic_energy_axis_maximum_wideness_bin:
+                if i!=i0 and log_edges[indexes_edges[-2]] - log_edges[min_i] <= self.dynamic_energy_axis_maximum_wideness_bin * r_tol:
                     indexes_edges.pop(-1)
                 indexes_edges.append(min_i)
                 i = min_i-1
