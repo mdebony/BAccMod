@@ -32,6 +32,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  dynamic_energy_axis: bool = False,
                  dynamic_energy_axis_target_statistics: int = 500,
                  dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
+                 dynamic_energy_axis_merge_zeros_low_energy: bool = False,
+                 dynamic_energy_axis_merge_zeros_high_energy: bool = False,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
                  initial_cos_zenith_binning: float = 0.01,
@@ -67,6 +69,10 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
         dynamic_energy_axis_maximum_wideness_bin: float
             energy bin will not be merged if the resulting bin will be wider (in logorarithmic space) than this value
+        dynamic_energy_axis_merge_zeros_low_energy: bool
+            decides if empty energy bins at low energy are merged during the dynamic binning
+        dynamic_energy_axis_merge_zeros_high_energy: bool
+            decides if empty energy bins at high energy are merged during the dynamic binning
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime','min_n_observation'
         cos_zenith_binning_parameter_value : int, optional
@@ -114,6 +120,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          dynamic_energy_axis=dynamic_energy_axis,
                          dynamic_energy_axis_target_statistics=dynamic_energy_axis_target_statistics,
                          dynamic_energy_axis_maximum_wideness_bin=dynamic_energy_axis_maximum_wideness_bin,
+                         dynamic_energy_axis_merge_zeros_low_energy=dynamic_energy_axis_merge_zeros_low_energy,
+                         dynamic_energy_axis_merge_zeros_high_energy=dynamic_energy_axis_merge_zeros_high_energy,
                          cos_zenith_binning_method=cos_zenith_binning_method,
                          cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
                          initial_cos_zenith_binning=initial_cos_zenith_binning,
