@@ -20,7 +20,7 @@ from astropy.coordinates.erfa_astrom import erfa_astrom, ErfaAstromInterpolator
 from astropy.time import Time
 from gammapy.data import Observations, Observation
 from gammapy.datasets import MapDataset
-from gammapy.irf import FoVAlignment, Background2D, Background3D
+from gammapy.irf import Background2D, Background3D
 from gammapy.irf.background import BackgroundIRF
 from gammapy.makers import MapDatasetMaker, SafeMaskMaker, FoVBackgroundMaker
 from gammapy.maps import WcsNDMap, WcsGeom, Map, MapAxis
@@ -34,8 +34,7 @@ from .exception import BackgroundModelFormatException
 from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
-                      generate_irf_from_mini_irf,
-                      compute_neighbour_condition_validation)
+                      generate_irf_from_mini_irf)
 
 logger = logging.getLogger(__name__)
 
@@ -464,7 +463,6 @@ class BaseAcceptanceMapCreator(ABC):
             east_observations = observations
             east_observations_off = off_observations
             west_observations = {}
-            west_observations_off = {}
             splitted_obs = {}
             east_model = base_model or self.create_acceptance_map(east_observations_off)
             west_model = east_model
@@ -1060,12 +1058,10 @@ class BaseAcceptanceMapCreator(ABC):
 
         if type(collection_binned_model) is BackgroundCollectionZenithSplitAzimuth:
             east_observations, west_observations, splitted_obs = self._split_observations_azimuth(observations)
-            azref={'azimuth':80. * u.deg}
         else:
             east_observations = observations
             west_observations = {}
             splitted_obs = {}
-            azref={}
 
         # Determine model type and axes
         type_model = collection_binned_model.type_model
@@ -1137,7 +1133,6 @@ class BaseAcceptanceMapCreator(ABC):
             A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
         """
 
-        acceptance_map = {}
         if zenith_interpolation:
             acceptance_map = self.create_acceptance_map_cos_zenith_interpolated(observations=observations,
                                                                                 off_observations=off_observations,

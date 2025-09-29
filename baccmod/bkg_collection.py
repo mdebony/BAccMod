@@ -390,7 +390,7 @@ class BackgroundCollectionZenith(BackgroundCollection):
         error_message: str, optional
             Starting error message.
         extra_context: str, optional
-            Can be use to extend a potential error message without triggering it if no issues are found.
+            Can be used to extend a potential error message without triggering it if no issues are found.
         """
         ref_bkg = next(iter(self.bkg.values()))
         self.type_model = type(ref_bkg)
@@ -430,7 +430,7 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
     @staticmethod
     def eastwest(azimuth:u.Quantity):
         """
-        Associate an azimuth angle value to a east or west pointing.
+        Associate an azimuth angle value to an east or west pointing.
         Parameters
         ----------
         azimuth: astropy.Quantity
