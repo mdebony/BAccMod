@@ -32,14 +32,23 @@ class BackgroundCollection(ABC):
                  interpolation_cleaning_energy_relative_threshold: bool=1e-4,
                  interpolation_cleaning_spatial_relative_threshold: bool=1e-2):
         """
+        Base class for background irf collections, defining basic verification and access structure as well as
+        interpolation settings.
+
+        Parameters
+        ----------
+        bkg:
+            The attribute containing the background IRFs
         interpolation_type: str, optional
-            Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
+            Select the type of interpolation to be used, could be either "log" or "linear",
+            log tend to provided better results be could more easily create artefact that will cause issue
         activate_interpolation_cleaning: bool, optional
-            If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
+            If true, will activate the cleaning step after interpolation,
+            it should help to eliminate artefact caused by interpolation
         interpolation_cleaning_energy_relative_threshold: float, optional
-            To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
+            To be kept, each bin in energy needs at least one adjacent bin with a relative difference within this range
         interpolation_cleaning_spatial_relative_threshold: float, optional
-            To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
+            To be kept, each bin in space needs at least one adjacent bin with a relative difference within this range
         """
         self.bkg = bkg
         self.type_model = None
@@ -54,12 +63,12 @@ class BackgroundCollection(ABC):
         self.interpolation_cleaning_energy_relative_threshold = interpolation_cleaning_energy_relative_threshold
         self.interpolation_cleaning_spatial_relative_threshold = interpolation_cleaning_spatial_relative_threshold
         self.max_cleaning_iteration = 50
-
         self.interpolation_function_exist = False
 
     @abstractmethod
     def get_model(self, *args, **kwargs):
         """
+        Given a set of identification parameters, return the associated BackgroundIRF.
 
         Returns
         -------
@@ -68,8 +77,9 @@ class BackgroundCollection(ABC):
         pass
 
     @abstractmethod
-    def get_binned_model(self, *args, **kwargs):
+    def get_closest_model(self, *args, **kwargs):
         """
+        In collection with multiple model, find the one closest to the requested parameters.
 
         Returns
         -------
@@ -80,14 +90,14 @@ class BackgroundCollection(ABC):
     @abstractmethod
     def _generate_interpolation_function(self, *args, **kwargs):
         """
-        Generate the interpolation functions
+        Generate interpolation functions.
         """
         pass
 
     def generate_interpolation_function(self, *args, **kwargs):
         """
         Generate the interpolation functions
-        In the implementation, could use self.interpolation_function_exist to avoid multiple generation
+        Use self.interpolation_function_exist to avoid multiple generation
         """
         if not self.interpolation_function_exist:
             self._generate_interpolation_function(*args, **kwargs)
@@ -96,19 +106,23 @@ class BackgroundCollection(ABC):
     @abstractmethod
     def _interpolate(self, *args, **kwargs):
         """
+        Perform interpolation between available IRFs in the collection.
+
         Returns
         -------
-        interp_bkg : gammapy.irf.BackgroundIRF
+        interp_bkg : astropy.units.Quantity
+            Array of interpolated data
         """
         pass
 
     def get_interpolated_model(self, *args, **kwargs):
         """
-        Return the interpolated model
+        Perform interpolation between available IRFs in the collection to create a new BackgroundIRF.
 
         Returns
         -------
         model : gammapy.irf.BackgroundIRF
+            The interpolated IRF
         """
         if not self.consistent_bkg:
             raise BackgroundModelFormatException("Interpolation impossible with inconsistent background models.")
@@ -129,12 +143,12 @@ class BackgroundCollection(ABC):
 
             Parameters
             ----------
-            background_model : numpy.array
+            background_model : astropy.units.Quantity
                 The background model to be cleaned
 
             Returns
             -------
-            background_model : numpy.array
+            background_model : astropy.units.Quantity
                 The background model cleaned
         """
 
@@ -163,11 +177,35 @@ class BackgroundCollection(ABC):
 
     @staticmethod
     def _check_model(v, error_message=''):
+        """
+        Verify that the type of the objects in the collection are BackgroundIRF.
+
+        Parameters
+        ----------
+        v: BackgroundIRF
+            Value whose type will be checked.
+        error_message: str, optional
+            Current content of the error message.
+
+        Returns
+        -------
+        error_message: str
+            Updated error message.
+        """
         if not isinstance(v, BackgroundIRF):
             error_message += 'Invalid type : model should be a BackgroundIRF.'
         return error_message
 
     def _check_ref(self, v):
+        """
+        Verify that all BackgroundIRF have identical properties.
+        Required for interpolation.
+
+        Parameters
+        ----------
+        v: BackgroundIRF
+            Object whose properties will be compared to previously setup expectations.
+        """
         if self.consistent_bkg:
             warning_message = ''
             if not isinstance(v, self.type_model):
@@ -185,8 +223,12 @@ class BackgroundCollection(ABC):
             if not self.consistent_bkg:
                 logger.warning(warning_message)
 
-
+    @abstractmethod
     def check_bkg(self, **kwargs):
+        """
+        Perform checks to verify that the data received is of the correct type and properties.
+        Typically, should include calls to _check_model and _check_ref.
+        """
         pass
 
 
@@ -194,7 +236,7 @@ class BackgroundCollectionZenith(BackgroundCollection):
 
     def __init__(self, bkg_dict: dict[float, BackgroundIRF] = None, **kwargs):
         """
-            Create the class for storing a collection of model for different zenith angle
+            Create the class for storing a collection of model for different zenith angles.
 
             Parameters
             ----------
@@ -209,14 +251,10 @@ class BackgroundCollectionZenith(BackgroundCollection):
     def get_zenith(self, *args, **kwargs):
         """
         Return zenith of the available models
-        Parameters
-        ----------
-        azimuth: u.Quantity
-            ignored
 
         Returns
         -------
-        keys : np.array
+        keys : astropy.units.Quantity
             The zenith angle available in degree
         """
         return np.sort(np.array(list(self.bkg.keys())))*u.deg
@@ -226,13 +264,11 @@ class BackgroundCollectionZenith(BackgroundCollection):
 
     def get_model(self, zenith: u.Quantity, *args, **kwargs):
         """
-        Return zenith of the available models
+        Return model at the requested zenith angle.
         Parameters
         ----------
         zenith: u.Quantity
-            the zenith of the model, must exist in the return of get_zenith
-        azimuth: u.Quantity
-            ignored
+            the zenith of the model, must be a valid entry.
 
         Returns
         -------
@@ -240,15 +276,13 @@ class BackgroundCollectionZenith(BackgroundCollection):
         """
         return self[zenith.to_value(u.deg)]
 
-    def get_binned_model(self, zenith: u.Quantity, *args, **kwargs):
+    def get_closest_model(self, zenith: u.Quantity, *args, **kwargs):
         """
-        Return the binned model for a given zenith and east/west pointing
+        Return the model closest to a given zenith.
         Parameters
         ----------
         zenith: u.Quantity
             the zenith for which a model is requested
-        azimuth: u.Quantity
-            the azimuth for which you want the model
         Returns
         -------
         model : gammapy.irf.BackgroundIRF
@@ -259,20 +293,19 @@ class BackgroundCollectionZenith(BackgroundCollection):
         key_closest_model = zenith_model[np.abs(cos_zenith_model-cos_zenith_observation).argmin()]
         return self.get_model(key_closest_model)
 
-    def _create_interpolation_function_from_zenith_collection(self, base_model: Dict[float, BackgroundIRF]):
+    def _create_interpolation_function(self, base_model: Dict[float, BackgroundIRF]):
         """
-            Create the function that will perform the interpolation
+            Create the function that will perform the interpolation from a dictionary of BackgroundIRF.
 
             Parameters
             ----------
             base_model : dict of gammapy.irf.background.BackgroundIRF
-                The binned base model
                 Each key of the dictionary should correspond to the zenith in degree of the model
 
             Returns
             -------
             interp_func : wrapper for scipy.interpolate.interp1d
-                The object that could be call directly for performing the interpolation
+                The object that could be called directly to perform the interpolation
         """
 
         # Reshape the base model
@@ -313,31 +346,52 @@ class BackgroundCollectionZenith(BackgroundCollection):
 
     def _generate_interpolation_function(self):
         """
-        Generate the interpolation functions
+        Generate the interpolation function. Support both the single model case and multi models case.
         """
-        if len(self.bkg) <=1:
+        if len(self.bkg)==1:
             logger.warning('Only one zenith bin, zenith interpolation deactivated')
             self.interpolation_function = lambda x: self.get_model(self.get_zenith()[0]).data
         else:
-            self.interpolation_function = self._create_interpolation_function_from_zenith_collection(self.bkg)
-
+            self.interpolation_function = self._create_interpolation_function(self.bkg)
 
     def _interpolate(self, zenith: u.Quantity, *args, **kwargs):
         """
+        Performs the zenith interpolation, after generating the interpolation function if it was not done before.
 
-
+        Parameters
+        ----------
+        zenith: u.Quantity
+            The targeted zenith for the interpolation.
         """
         self.generate_interpolation_function()
         return self.interpolation_function(zenith)
 
-
     def _check_entry(self, key, v, error_message=''):
+        """
+        Verify that the items of the provided dictionary are valid zenith angles, BackgroundIRF pairs.
+        Parameters
+        ----------
+        key: float
+            zenith angle
+        v: BackgroundIRF
+        error_message: str, optional
+        """
         if key > 90.0 or key < 0.0:
             error_message += ('Invalid key : The zenith associated with the model should be between 0 and 90 in degree,'
                               ' ')+str(key)+' provided.\n'
         self._check_model(v, error_message=error_message)
 
     def check_bkg(self, error_message='', extra_context=''):
+        """
+        Perform checks to verify that the data received is of the correct type and properties.
+
+        Parameters
+        ----------
+        error_message: str, optional
+            Starting error message.
+        extra_context: str, optional
+            Can be use to extend a potential error message without triggering it if no issues are found.
+        """
         ref_bkg = next(iter(self.bkg.values()))
         self.type_model = type(ref_bkg)
         self.axes_model = ref_bkg.axes
@@ -358,7 +412,7 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
                  bkg_west: BackgroundCollectionZenith = None,
                  **kwargs):
         """
-            Create the class for storing a collection of model for different zenith angle
+            Create the class for storing a collection of model split in azimuth and for different zenith angle
 
             Parameters
             ----------
@@ -370,22 +424,43 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
                 Arguments for the base class, see docstring of BackgroundCollection
         """
         super().__init__(bkg = {'east':bkg_east,
-                                'west':bkg_west}
-                         ,**kwargs)
+                                'west':bkg_west},
+                         **kwargs)
 
     @staticmethod
     def eastwest(azimuth:u.Quantity):
+        """
+        Associate an azimuth angle value to a east or west pointing.
+        Parameters
+        ----------
+        azimuth: astropy.Quantity
+
+        Returns
+        -------
+        str : 'east' or 'west'
+        """
         if azimuth.to_value(u.deg)%360 <= 180:
             return 'east'
         else:
             return 'west'
 
-    def interpolation_functions(self, az_key):
+    def interpolation_functions(self, az_key:str):
+        """
+        Gives access to the east and west zenith interpolation functions.
+        Parameters
+        ----------
+        az_key: str
+            'east' or 'west'
+
+        Returns
+        -------
+            The interpolation function
+        """
         return self.bkg[az_key].interpolation_function
 
     def get_zenith(self, azimuth:u.Quantity=None):
         """
-        Return zenith of the available models
+        Return zenith of the available models for a given east/west pointing
         Parameters
         ----------
         azimuth: u.Quantity
@@ -393,14 +468,14 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
 
         Returns
         -------
-        keys : np.array
+        keys : astropy.units.Quantity
             The zenith angle available in degree
         """
         return self.bkg[self.eastwest(azimuth)].get_zenith()
 
-    def get_binned_model(self, zenith: u.Quantity, azimuth: u.Quantity, *args, **kwargs):
+    def get_closest_model(self, zenith: u.Quantity, azimuth: u.Quantity, *args, **kwargs):
         """
-        Return the binned model for a given zenith and east/west pointing
+        Return the closest model for a given zenith and east/west pointing
         Parameters
         ----------
         zenith: u.Quantity
@@ -411,15 +486,15 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
         -------
         model : gammapy.irf.BackgroundIRF
         """
-        return self.bkg[self.eastwest(azimuth)].get_binned_model(zenith)
+        return self.bkg[self.eastwest(azimuth)].get_closest_model(zenith)
 
     def get_model(self, zenith: u.Quantity, azimuth: u.Quantity, *args, **kwargs):
         """
-        Return zenith of the available models
+        Return model at the requested zenith angle.
         Parameters
         ----------
-        zenith: float
-            the zenith of the model, must exist in the return of get_zenith
+        zenith: u.Quantity
+            the zenith of the model, must be a valid entry.
         azimuth: u.Quantity
             the azimuth for which you want the model
 
@@ -440,15 +515,17 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
         if self.interpolation_functions('west') is None:
             logger.warning('Only one zenith bin, zenith interpolation deactivated for west pointing')
 
-    def _interpolate(self, azimuth: u.Quantity, zenith: u.Quantity, *args, **kwargs):
+    def _interpolate(self, zenith: u.Quantity, azimuth: u.Quantity, *args, **kwargs):
         """
-        Retrieve the appropriate interpolation function
+        Performs the zenith interpolation for the correct east/west pointing,
+        after generating the interpolation function if it was not done before.
 
         Parameters
         ----------
+        zenith: u.Quantity
+            The targeted zenith for the interpolation.
         azimuth: u.Quantity
             the azimuth for which you want the model
-        zenith: u.Quantity
 
         Returns
         -------
@@ -458,10 +535,20 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
         return self.interpolation_functions(self.eastwest(azimuth))(zenith)
 
     def check_bkg(self, **kwargs):
+        """
+        Perform checks to verify that the data received is of the correct type and properties.
+        """
         for k, v in self.bkg.items():
             v.check_bkg(extra_context=k+': ')
         self.type_model = self.bkg['east'].type_model
         self.axes_model = self.bkg['east'].axes_model
         self.unit_model = self.bkg['east'].unit_model
         self.fov_alignment = self.bkg['east'].fov_alignment
+
+        if (self.type_model != self.bkg['west'].type_model or
+            self.axes_model != self.bkg['west'].axes_model or
+            self.unit_model != self.bkg['west'].unit_model or
+            self.fov_alignment != self.bkg['west'].fov_alignment):
+            logger.warning("BackgroundIRF east and west have different properties.")
+
 

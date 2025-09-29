@@ -847,7 +847,7 @@ class BaseAcceptanceMapCreator(ABC):
 
                     data_obs_all = []
                     for i in range(len(evaluation_time)):
-                        selected_model_bin = collection_binned_model.get_binned_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
+                        selected_model_bin = collection_binned_model.get_closest_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
                         data_obs_all.append(selected_model_bin.data * selected_model_bin.unit.to(unit_model))
                     data_obs_all=np.array(data_obs_all)
 
@@ -864,7 +864,7 @@ class BaseAcceptanceMapCreator(ABC):
                         raise Exception('Unknown background format')
 
                 else:
-                    acceptance_map[k][obs.obs_id] = collection_binned_model.get_binned_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
+                    acceptance_map[k][obs.obs_id] = collection_binned_model.get_closest_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
 
         return self._merge_model_azimuth(acceptance_map['east'], acceptance_map['west'], splitted_obs)
 
