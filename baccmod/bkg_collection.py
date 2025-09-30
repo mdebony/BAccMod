@@ -54,6 +54,7 @@ class BackgroundCollection(ABC):
         self.type_model = None
         self.axes_model = None
         self.unit_model = None
+        self.shape_model = None
         self.fov_alignment = None
         self.consistent_bkg = True
         self.check_bkg()
@@ -216,6 +217,9 @@ class BackgroundCollection(ABC):
                 self.consistent_bkg = False
             if v.unit != self.unit_model:
                 warning_message += f'Inconsistent units,not all {self.unit_model}.'
+                self.consistent_bkg = False
+            if v.data.shape != self.shape_model:
+                warning_message += f'Inconsistent shape,not all {self.shape_model}.'
                 self.consistent_bkg = False
             if v.fov_alignment != self.fov_alignment:
                 warning_message += f'Inconsistent fov_alignment, not all {self.fov_alignment}.'
@@ -396,6 +400,7 @@ class BackgroundCollectionZenith(BackgroundCollection):
         self.type_model = type(ref_bkg)
         self.axes_model = ref_bkg.axes
         self.unit_model = ref_bkg.unit
+        self.shape_model = ref_bkg.data.shape
         self.fov_alignment = ref_bkg.fov_alignment
         for k, v in self.bkg.items():
             key = float(k)
@@ -543,11 +548,13 @@ class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
         self.type_model = self.bkg['east'].type_model
         self.axes_model = self.bkg['east'].axes_model
         self.unit_model = self.bkg['east'].unit_model
+        self.shape_model = self.bkg['east'].shape_model
         self.fov_alignment = self.bkg['east'].fov_alignment
 
         if (self.type_model != self.bkg['west'].type_model or
             self.axes_model != self.bkg['west'].axes_model or
             self.unit_model != self.bkg['west'].unit_model or
+            self.shape_model != self.bkg['west'].shape_model or
             self.fov_alignment != self.bkg['west'].fov_alignment):
             logger.warning("BackgroundIRF east and west have different properties.")
 

@@ -833,6 +833,7 @@ class BaseAcceptanceMapCreator(ABC):
         type_model = collection_binned_model.type_model
         axes_model = collection_binned_model.axes_model
         unit_model = collection_binned_model.unit_model
+        shape_model = collection_binned_model.shape_model
 
         # Find the closest model for each observation and associate it to each observation
         acceptance_map = {}
@@ -841,13 +842,14 @@ class BaseAcceptanceMapCreator(ABC):
             acceptance_map[k] = {}
             for obs in observations_split[k]:
                 if self.use_mini_irf_computation:
+                    if not collection_binned_model.consistent_bkg:
+                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
                     evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
 
-                    data_obs_all = []
+                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model))) * unit_model
                     for i in range(len(evaluation_time)):
                         selected_model_bin = collection_binned_model.get_closest_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
-                        data_obs_all.append(selected_model_bin.data * selected_model_bin.unit.to(unit_model))
-                    data_obs_all=np.array(data_obs_all)
+                        data_obs_all[i] = selected_model_bin.data * selected_model_bin.unit
 
                     data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
 
@@ -1067,6 +1069,7 @@ class BaseAcceptanceMapCreator(ABC):
         type_model = collection_binned_model.type_model
         axes_model = collection_binned_model.axes_model
         unit_model = collection_binned_model.unit_model
+        shape_model = collection_binned_model.shape_model
 
         # Find the closest model for each observation and associate it to each observation
         acceptance_map = {}
@@ -1076,12 +1079,13 @@ class BaseAcceptanceMapCreator(ABC):
             # Perform the interpolation
             for obs in observations_split[k]:
                 if self.use_mini_irf_computation:
+                    if not collection_binned_model.consistent_bkg:
+                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
                     evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
-                    data_obs_all = []
+                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model)))
                     for i in range(len(evaluation_time)):
                         model_bin = collection_binned_model.get_interpolated_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
-                        data_obs_all.append(model_bin.data * model_bin.unit.to(unit_model))
-                    data_obs_all=np.array(data_obs_all)
+                        data_obs_all[i] = (model_bin.data * model_bin.unit).to_value(unit_model)
 
                     data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
                     if type_model is Background2D:
