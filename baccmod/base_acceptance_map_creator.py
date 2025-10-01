@@ -47,6 +47,11 @@ class BaseAcceptanceMapCreator(ABC):
                  spatial_resolution: u.Quantity,
                  energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
+                 dynamic_energy_axis: bool = False,
+                 dynamic_energy_axis_target_statistics: int = 500,
+                 dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
+                 dynamic_energy_axis_merge_zeros_low_energy: bool = False,
+                 dynamic_energy_axis_merge_zeros_high_energy: bool = False,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
                  initial_cos_zenith_binning: float = 0.01,
@@ -75,6 +80,16 @@ class BaseAcceptanceMapCreator(ABC):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Regions with known or putative gamma-ray emission, will be excluded from the calculation of the acceptance map
+        dynamic_energy_axis: bool
+            if True, the energy axis will for computation will be determined independently for each model, the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
+        dynamic_energy_axis_target_statistics: int
+            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
+        dynamic_energy_axis_maximum_wideness_bin: float
+            energy bin will not be merged if the resulting bin will be wider (in logarithmic space) than this value
+        dynamic_energy_axis_merge_zeros_low_energy: bool
+            decides if empty energy bins at low energy are merged during the dynamic binning
+        dynamic_energy_axis_merge_zeros_high_energy: bool
+            decides if empty energy bins at high energy are merged during the dynamic binning
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime', 'min_livetime_per_wobble', 'min_n_observation', 'min_n_observation_per_wobble'
         cos_zenith_binning_parameter_value : int, optional
@@ -114,14 +129,19 @@ class BaseAcceptanceMapCreator(ABC):
         self.energy_axis = energy_axis
         self.max_offset = max_offset
         self.exclude_regions = exclude_regions
+
+        # Store energy axis computation information
         self.energy_axis_computation = self.energy_axis if energy_axis_computation is None else energy_axis_computation
+        self.dynamic_energy_axis = dynamic_energy_axis
+        self.dynamic_energy_axis_target_statistics = dynamic_energy_axis_target_statistics
+        self.dynamic_energy_axis_maximum_wideness_bin = dynamic_energy_axis_maximum_wideness_bin
+        self.dynamic_energy_axis_merge_zeros_low_energy = dynamic_energy_axis_merge_zeros_low_energy
+        self. dynamic_energy_axis_merge_zeros_high_energy = dynamic_energy_axis_merge_zeros_high_energy
 
         # Calculate map parameter
         self.n_bins_map = 2 * int(np.rint((self.max_offset / spatial_resolution).to(u.dimensionless_unscaled)))
         self.spatial_bin_size = self.max_offset / (self.n_bins_map / 2)
         self.center_map = SkyCoord(ra=0. * u.deg, dec=0. * u.deg, frame='icrs')
-        self.geom = WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
-                                   binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
         logger.info(
             'Computation will be made with a bin size of {:.3f} arcmin'.format(
                 self.spatial_bin_size.to_value(u.arcmin)))
@@ -150,6 +170,26 @@ class BaseAcceptanceMapCreator(ABC):
         # Store mini irf computation parameters
         self.use_mini_irf_computation = use_mini_irf_computation
         self.mini_irf_time_resolution = mini_irf_time_resolution
+
+    def _get_geom(self, energy_axis: MapAxis = None) -> WcsGeom:
+        """
+        Return the gammapy geometry for maps based on the provided energy axis (if none is provided, use the default axis for computation)
+
+        Parameters
+        ----------
+        energy_axis : MapAxis
+            The energy axis that will be associated with spatial information to make the full geometry
+
+        Returns
+        -------
+        geom: WcsGeom
+            The geometry object to use to create gammapy maps
+
+        """
+        if energy_axis is None:
+            energy_axis = self.energy_axis_computation
+        return WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
+                              binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis])
 
     @staticmethod
     def _get_events_in_camera_frame(obs: Observation) -> SkyCoord:
@@ -448,7 +488,79 @@ class BaseAcceptanceMapCreator(ABC):
         """
         pass
 
-    def _create_base_computation_map(self, observations: Observation) -> Tuple:
+
+    def _compute_dynamic_energy_axis(self, base_energy_axis: MapAxis, data: np.ndarray, nb_spatial_bin: int) -> MapAxis:
+        """
+        Compute a new energy axis from the base one to better have a more uniform number of event in each bin
+
+        Parameters
+        ----------
+        base_energy_axis: gammapy.maps.MapAxis
+            the base energy axis
+        data : np.ndarray
+            the count distribution only binned in energy (using base_energy_axis binning)
+        nb_spatial_bin : int
+            the number of spatial bin covering the data_energy_distribution
+
+        Returns
+        -------
+        final_energy_axis: gammapy.maps.MapAxis
+            the optimal energy axis
+        """
+
+        # Relative numerical tolerance for the energy bin width limit
+        r_tol = 1 + 1e-7
+
+        edges_energy_axis = base_energy_axis.edges
+
+        cumsumdata = np.cumsum(data)/nb_spatial_bin
+        rev_cumsumdata = np.cumsum(data[::-1])[::-1]/nb_spatial_bin
+        # Evaluate the bins with only zeros at the start and end of the distribution
+        zeros_lowE = np.nonzero(cumsumdata==0)[0]
+        zeros_highE = np.nonzero(rev_cumsumdata==0)[0]
+
+        log_edges = np.log10(edges_energy_axis.to_value(u.TeV))
+
+
+        min_i = len(zeros_lowE)
+        i0 = len(edges_energy_axis) - len(zeros_highE)-1
+        i = i0
+        indexes_edges = [len(edges_energy_axis)-1]
+
+        # Evaluate bin edges fulfilling the dynamic criteria
+        while i > min_i:
+            # Index for the mean count criteria
+            j_counts = np.sum(rev_cumsumdata >= self.dynamic_energy_axis_target_statistics)-1
+            # Index for the max bin width criteria
+            j_maxw = np.sum((log_edges[i] - log_edges[:i-1]) > self.dynamic_energy_axis_maximum_wideness_bin * r_tol)
+            if j_counts < min_i and j_maxw < min_i:
+                # Handle the last bin before the lower zeros, adding its lower edge and eventually merging with the previous bin
+                if i!=i0 and log_edges[indexes_edges[-2]] - log_edges[min_i] <= self.dynamic_energy_axis_maximum_wideness_bin * r_tol:
+                    indexes_edges.pop(-1)
+                indexes_edges.append(min_i)
+                i = min_i-1
+            else:
+                # Pick the first fulfilled criteria
+                if j_counts >= j_maxw:
+                    j = j_counts
+                else:
+                    j = j_maxw
+                    logger.warning(
+                        'Dynamic energy binning is unable to reach target statistics due to bin maximum bin wideness')
+                indexes_edges.append(j)
+                rev_cumsumdata -= rev_cumsumdata[j]
+                i = j
+        # Add empty bins
+        if self.dynamic_energy_axis_merge_zeros_low_energy and len(zeros_lowE)>0:
+            zeros_lowE = np.array([0], dtype=int)
+        if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
+            zeros_highE = np.array([i0], dtype=int)
+        indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
+        return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+
+
+
+    def _create_base_computation_map(self, observations: Observation) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
         """
         Abstract method to calculate maps used in acceptance computation from a list of observations.
 
@@ -469,6 +581,8 @@ class BaseAcceptanceMapCreator(ABC):
             The exposure map without correction for exclusion regions
         livetime : astropy.unit.Quantity
             The total exposure time for the model
+        energy_axis : gammapy.maps.MapAxis
+            The energy axis used for the computation
         """
         pass
 

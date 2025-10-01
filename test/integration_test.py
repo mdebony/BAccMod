@@ -1,4 +1,5 @@
 import os
+import logging
 
 import astropy.units as u
 import numpy as np
@@ -42,12 +43,20 @@ class TestIntegrationClass:
 
     energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=5, per_decade=True, name='energy')
     energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
+    energy_axis_computation_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
     absolute_tolerance = 1e-15
     relative_tolerance = 1e-7
     #TODO when issue with spatial fit is resolved, need to be lowered
     relative_tolerance_fit_method = 5e-2
+
+    def _print_model_precision(self, background_model, reference):
+        mask = reference.data != 0
+        relative_error = np.abs(background_model.data - reference.data)[mask] / reference.data[mask]
+        if np.sum(relative_error > self.relative_tolerance) > 0:
+            logging.warning(
+                f'Maximum relative error : {np.nanmax(relative_error)}, fraction above threshold {self.relative_tolerance} : {np.sum(relative_error > self.relative_tolerance) / relative_error.size}, fraction above 1e-3 : {np.sum(relative_error > 1e-3) / relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2) / relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1) / relative_error.size}')
 
     def test_integration_3D(self):
         bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
@@ -57,6 +66,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D.fits')
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
@@ -70,8 +80,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
-        for i in range(background_model.data.shape[0]):
-            print(np.sum((np.abs(background_model.data[i, : ,:] - reference.data[i, : ,:]) / reference.data[i, : ,:]) > 1e-3))
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance_fit_method))
@@ -84,6 +93,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D.fits')
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
@@ -97,6 +107,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_bkg_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
@@ -111,6 +122,7 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance_fit_method))
@@ -124,6 +136,58 @@ class TestIntegrationClass:
         background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
+
+
+
+    def test_integration_3D_dynamic_irregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation_dense,
+                                               offset_axis=self.offset_axis,
+                                               dynamic_energy_axis=True,
+                                               dynamic_energy_axis_target_statistics=100,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_bkg_dynamic_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance))
+
+    def test_integration_spatial_fit_dynamic_irregular_computation_axis(self):
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation_dense,
+                                               offset_axis=self.offset_axis,
+                                               dynamic_energy_axis=True,
+                                               dynamic_energy_axis_target_statistics=100,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155,
+                                               method='fit')
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_dynamic_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance_fit_method))
+
+    def test_integration_2D_dynamic_irregular_computation_axis(self):
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                               energy_axis_computation=self.energy_axis_computation_dense,
+                                               offset_axis=self.offset_axis,
+                                               dynamic_energy_axis=True,
+                                               dynamic_energy_axis_target_statistics=500,
+                                               oversample_map=5,
+                                               exclude_regions=self.exclude_region_PKS_2155)
+        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background2D
+        reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_dynamic_irregular_energy.fits')
+        self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
@@ -139,6 +203,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_binned.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -155,6 +220,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -172,6 +238,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -190,6 +257,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_log_cleaning.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -207,6 +275,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_zenith_interpolated_run_splitting_mini_irf.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -224,8 +293,8 @@ class TestIntegrationClass:
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
-            reference = Background2D.read(
-                f'ressource/test_data/reference_model/pks_2155_{id_obs}_irregular_computation_axis_zenith_interpolated_run_splitting_mini_irf.fits')
+            reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_irregular_computation_axis_zenith_interpolated_run_splitting_mini_irf.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))
@@ -241,6 +310,7 @@ class TestIntegrationClass:
             assert id_obs in background_model
             assert type(background_model[id_obs]) is Background2D
             reference = Background2D.read(f'ressource/test_data/reference_model/pks_2155_{id_obs}_run_normalisation.fits')
+            self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
                                      rtol=self.relative_tolerance))

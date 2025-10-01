@@ -29,6 +29,11 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  oversample_map: int = 10,
                  energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
+                 dynamic_energy_axis: bool = False,
+                 dynamic_energy_axis_target_statistics: int = 500,
+                 dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
+                 dynamic_energy_axis_merge_zeros_low_energy: bool = False,
+                 dynamic_energy_axis_merge_zeros_high_energy: bool = False,
                  cos_zenith_binning_method: str = 'min_livetime',
                  cos_zenith_binning_parameter_value: int = 3600,
                  initial_cos_zenith_binning: float = 0.01,
@@ -58,6 +63,16 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
+        dynamic_energy_axis: bool
+            if True, the energy axis will for computation will be determined independently for each model, the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
+        dynamic_energy_axis_target_statistics: int
+            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
+        dynamic_energy_axis_maximum_wideness_bin: float
+            energy bin will not be merged if the resulting bin will be wider (in logorarithmic space) than this value
+        dynamic_energy_axis_merge_zeros_low_energy: bool
+            decides if empty energy bins at low energy are merged during the dynamic binning
+        dynamic_energy_axis_merge_zeros_high_energy: bool
+            decides if empty energy bins at high energy are merged during the dynamic binning
         cos_zenith_binning_method : str, optional
             The method used for cos zenith binning: 'min_livetime','min_n_observation'
         cos_zenith_binning_parameter_value : int, optional
@@ -89,10 +104,6 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
         """
 
-        # If no exclusion region, default it as an empty list
-        if exclude_regions is None:
-            exclude_regions = []
-
         # Compute parameters for internal map
         self.offset_axis = offset_axis
         self.oversample_map = oversample_map
@@ -106,6 +117,11 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          spatial_resolution=spatial_resolution,
                          energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
+                         dynamic_energy_axis=dynamic_energy_axis,
+                         dynamic_energy_axis_target_statistics=dynamic_energy_axis_target_statistics,
+                         dynamic_energy_axis_maximum_wideness_bin=dynamic_energy_axis_maximum_wideness_bin,
+                         dynamic_energy_axis_merge_zeros_low_energy=dynamic_energy_axis_merge_zeros_low_energy,
+                         dynamic_energy_axis_merge_zeros_high_energy=dynamic_energy_axis_merge_zeros_high_energy,
                          cos_zenith_binning_method=cos_zenith_binning_method,
                          cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
                          initial_cos_zenith_binning=initial_cos_zenith_binning,
@@ -133,10 +149,11 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         -------
         acceptance_map : Background2D
         """
-        count_map_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
+        count_map_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation = self._create_base_computation_map(
             observations)
+        geom = self._get_geom(energy_axis_computation)
 
-        data_background = np.zeros((self.energy_axis_computation.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
+        data_background = np.zeros((energy_axis_computation.nbin, self.offset_axis.nbin)) * u.Unit('s-1 MeV-1 sr-1')
         for i in range(self.offset_axis.nbin):
             if np.isclose(0. * u.deg, self.offset_axis.edges[i]):
                 selection_region = CircleSkyRegion(center=self.center_map, radius=self.offset_axis.edges[i + 1])
@@ -144,23 +161,23 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 selection_region = CircleAnnulusSkyRegion(center=self.center_map,
                                                           inner_radius=self.offset_axis.edges[i],
                                                           outer_radius=self.offset_axis.edges[i + 1])
-            selection_map = self.geom.to_image().region_mask([selection_region])
-            for j in range(self.energy_axis_computation.nbin):
+            selection_map = geom.to_image().region_mask([selection_region])
+            for j in range(energy_axis_computation.nbin):
                 value = u.dimensionless_unscaled * np.sum(count_map_background.data[j, :, :] * selection_map)
                 value *= np.sum(exp_map_background_total.data[j, :, :] * selection_map) / np.sum(
                     exp_map_background.data[j, :, :] * selection_map)
 
-                value /= (self.energy_axis_computation.edges[j + 1] - self.energy_axis_computation.edges[j])
+                value /= (energy_axis_computation.edges[j + 1] - energy_axis_computation.edges[j])
                 value /= 2. * np.pi * (
                             np.cos(self.offset_axis.edges[i]) - np.cos(self.offset_axis.edges[i + 1])) * u.steradian
                 value /= livetime
                 data_background[j, i] = value
 
-        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, self.energy_axis_computation))
+        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation))
 
         return acceptance_map
 
-    def _create_base_computation_map(self, observations: Observations) -> Tuple[WcsNDMap, WcsNDMap, WcsNDMap, u.Quantity]:
+    def _create_base_computation_map(self, observations: Observations) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
         """
         From a list of observations return a stacked finely binned counts and exposure map in camera frame to compute a
         model
@@ -180,15 +197,28 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The exposure map without correction for exclusion regions
         livetime : astropy.unit.Quantity
             The total exposure time for the model
+        energy_axis : gammapy.maps.MapAxis
+            The energy axis used for the computation
         """
-        count_map_background = WcsNDMap(geom=self.geom)
-        exp_map_background = WcsNDMap(geom=self.geom, unit=u.s)
-        exp_map_background_total = WcsNDMap(geom=self.geom, unit=u.s)
+
+        energy_axis_computation = self.energy_axis_computation.copy()
+        if self.dynamic_energy_axis:
+            data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
+            for obs in observations:
+                mask_event = obs.events.offset <= self.max_offset
+                distrib, _ = np.histogram(obs.events.energy[mask_event], energy_axis_computation.edges)
+                data_energy_distribution += distrib
+            energy_axis_computation = self._compute_dynamic_energy_axis(energy_axis_computation, data_energy_distribution, self.offset_axis.nbin)
+
+        geom = self._get_geom(energy_axis_computation)
+        count_map_background = WcsNDMap(geom=geom)
+        exp_map_background = WcsNDMap(geom=geom, unit=u.s)
+        exp_map_background_total = WcsNDMap(geom=geom, unit=u.s)
         livetime = 0. * u.s
 
         for obs in observations:
             geom = WcsGeom.create(skydir=obs.pointing.fixed_icrs, npix=(self.n_bins_map, self.n_bins_map),
-                                  binsz=self.spatial_bin_size, frame="icrs", axes=[self.energy_axis_computation])
+                                  binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis_computation])
             count_map_obs, exclusion_mask = self._create_map(obs, geom, self.exclude_regions, add_bkg=False)
 
             exp_map_obs = MapDataset.create(geom=count_map_obs.geoms['geom'])
@@ -205,4 +235,4 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             exp_map_background_total.data += exp_map_obs_total.counts.data
             livetime += obs.observation_live_time_duration
 
-        return count_map_background, exp_map_background, exp_map_background_total, livetime
+        return count_map_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation
