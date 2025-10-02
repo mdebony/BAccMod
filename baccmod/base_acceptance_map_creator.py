@@ -402,7 +402,7 @@ class BaseAcceptanceMapCreator(ABC):
         return time_interval
 
     @abstractmethod
-    def create_acceptance_map(self, observations: Observations) -> BackgroundIRF:
+    def create_model(self, observations: Observations) -> BackgroundIRF:
         """
         Abstract method to calculate an acceptance map from a list of observations.
 
@@ -415,68 +415,44 @@ class BaseAcceptanceMapCreator(ABC):
 
         Returns
         -------
-        acceptance_map : gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
-            The acceptance map calculated using the specific algorithm implemented by the subclass.
+        model : gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
+            The background IRF calculated using the specific algorithm implemented by the subclass.
         """
         pass
 
-    def create_acceptance_map_all_run(self,
-                                      observations: Observations,
-                                      off_observations: Observations = None,
-                                      base_model: BackgroundIRF = None) -> dict[int, BackgroundIRF]:
+    @staticmethod
+    def create_acceptance_map_all_run(observations: Observations,
+                                      model: BackgroundIRF|BackgroundCollectionZenithSplitAzimuth
+                                      ) -> dict[int, BackgroundIRF]:
         """
         Method to calculate an acceptance map associated at each run from a list of observations,
 
         Parameters
         ----------
         observations : gammapy.data.observations.Observations
-            The collection of observations used to create the acceptance map.
-        off_observations : gammapy.data.observations.Observations
-            The collection of observations used to generate the acceptance map, if None will be the observations provided as target
-            Will be ignored if a base_model parameter is provided
-        base_model : gammapy.irf.background.BackgroundIRF
-            If you have already a precomputed model, the method will use this model as base for the acceptance map instead of computing it from the data
+            The collection of observations requiring a background IRF.
+        model : gammapy.irf.background.BackgroundIRF or BackgroundCollectionZenithSplitAzimuth
+            The method will use this model for the acceptance map. It is possible to provide one model for each of east
+            and west pointing using a BackgroundCollectionZenithSplitAzimuth
 
         Returns
         -------
         acceptance_map : gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
-            The acceptance map calculated using the specific algorithm implemented by the subclass.
+            The acceptance map for each run.
         """
 
-        if off_observations is None:
-            off_observations = observations
-        elif base_model is not None:
-            logger.warning('The off observations provided will be ignored as a base model has been provided.')
-
-        # If needed produce the zenith binned model
-        if base_model is not None and not isinstance(base_model, BackgroundIRF):
-            error_message = 'The models should be provided as a BackgroundIRF object'
-            logger.error(error_message)
-            raise BackgroundModelFormatException(error_message)
-
-        if self.azimuth_east_west_splitting:
-            east_observations, west_observations, splitted_obs = self._split_observations_azimuth(observations)
-            east_observations_off, west_observations_off, _ = self._split_observations_azimuth(off_observations)
-            east_model = base_model or self.create_acceptance_map(east_observations_off)
-            west_model = base_model or self.create_acceptance_map(west_observations_off)
-        else:
-            east_observations = observations
-            east_observations_off = off_observations
-            west_observations = {}
-            splitted_obs = {}
-            east_model = base_model or self.create_acceptance_map(east_observations_off)
-            west_model = east_model
-
-        # Associate east-west model to data
         acceptance_map = {}
-        observations_split = {'east':east_observations, 'west':west_observations}
-        model_split = {'east':east_model, 'west':west_model}
-        for k in observations_split.keys():
-            acceptance_map[k] = {}
-            for obs in observations_split[k]:
-                acceptance_map[k][obs.obs_id] = model_split[k]
-
-        return self._merge_model_azimuth(acceptance_map['east'], acceptance_map['west'], splitted_obs)
+        for obs in observations:
+            if isinstance(model, BackgroundIRF):
+                acceptance_map[obs.obs_id] = model
+            elif isinstance(model, BackgroundCollectionZenithSplitAzimuth):
+                acceptance_map[obs.obs_id] = model.get_closest_model(zenith=45 * u.deg,
+                                                                     azimuth=obs.get_pointing_altaz(obs.tmid).az)
+            else:
+                error_message = 'The models should be provided as a BackgroundIRF or BackgroundCollection object'
+                logger.error(error_message)
+                raise BackgroundModelFormatException(error_message)
+        return acceptance_map
 
     def _create_base_computation_map(self, observations: Observation) -> Tuple:
         """
@@ -502,23 +478,23 @@ class BaseAcceptanceMapCreator(ABC):
         """
         pass
 
-    def _normalised_model_per_run(self,
-                                  observations: Observations,
-                                  acceptance_map: dict[int, BackgroundIRF]) -> dict[int, BackgroundIRF]:
+    def _normalise_model_per_run(self,
+                                 observations: Observations,
+                                 acceptance_map: dict[int, BackgroundIRF]) -> dict[int, BackgroundIRF]:
         """
-        Normalised the acceptance model associated to each run to the events associated with the run
+        Normalises the acceptance model associated to each run to the events rates in the run
 
         Parameters
         ----------
         observations : gammapy.data.observations.Observations
-            The collection of observations used to make the acceptance map
+            The collection of observations
         acceptance_map :dict of gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
-            A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
-            This is the models that will be normalised
+            A dict with observation number as key and an associated background model for each observation.
+            These models will be normalised.
         Returns
         -------
         background : dict of gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
-            A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
+            A dictionary with the renormalised background IRF for each observation id.
         """
 
         normalised_acceptance_map = {}
@@ -593,16 +569,16 @@ class BaseAcceptanceMapCreator(ABC):
 
         return time_interval
 
-    def _create_model_cos_zenith_binned_without_azimuth_split(self,
-                                                              observations: Observations
-                                                              ) -> BackgroundCollectionZenith:
+    def create_model_cos_zenith_binned(self,
+                                       observations: Observations
+                                       ) -> BackgroundCollectionZenith:
         """
         Calculate a model for each cos zenith bin
 
         Parameters
         ----------
         observations : gammapy.data.observations.Observations
-            The collection of observations used to make the acceptance map
+            The collection of observations used to make the background model
 
         Returns
         -------
@@ -739,7 +715,7 @@ class BaseAcceptanceMapCreator(ABC):
         binned_model = []
         for i, binned_obs in enumerate(binned_observations):
             logger.info(f"Creating model for the bin at cos zenith = {np.round(bin_center[i], 2)}°")
-            binned_model.append(self.create_acceptance_map(binned_obs))
+            binned_model.append(self.create_model(binned_obs))
 
         dict_binned_model = {}
         for i in range(len(binned_model)):
@@ -753,43 +729,57 @@ class BaseAcceptanceMapCreator(ABC):
                                                              interpolation_cleaning_spatial_relative_threshold=self.interpolation_cleaning_spatial_relative_threshold)
         return collection_binned_model
 
-    def create_model_cos_zenith_binned(self,
-                                       observations: Observations
-                                       ) -> BackgroundCollection:
+    def apply_mini_irf(self, obs, model, interp):
         """
-        Calculate a model for each cos zenith bin and with azimuth splitting if requested
-
+        Creates the background irf for an observation by averaging the IRF evaluated in smaller time intervals.
         Parameters
         ----------
-        observations : gammapy.data.observations.Observations
-            The collection of observations used to make the acceptance map
+        obs : gammapy.data.observations.Observation
+            The observation to which the acceptance model will be applied
+        model : BackgroundCollectionZenith or BackgroundCollectionZenithSplitAzimuth
+            The method will use this model for the acceptance map
+        interp : bool
+            Determine if we use IRF interpolation or the closest model at each time.
 
         Returns
         -------
-        background : BackgroundCollection
-            The collection of background model with the zenith associated to each model and azimuth for each if requested
-
+        background : gammapy.irf.background.BackgroundIRF
+            The background IRF for the observation.
         """
+        # Determine model type and axes
+        type_model = model.type_model
+        axes_model = model.axes_model
+        unit_model = model.unit_model
+        shape_model = model.shape_model
 
-        if self.azimuth_east_west_splitting:
-            obs_east, obs_west, _ = self._split_observations_azimuth(observations)
-            east_model = self._create_model_cos_zenith_binned_without_azimuth_split(obs_east)
-            west_model = self._create_model_cos_zenith_binned_without_azimuth_split(obs_west)
-            return BackgroundCollectionZenithSplitAzimuth(bkg_east=east_model,
-                                                          bkg_west=west_model,
-                                                          interpolation_type=self.interpolation_type,
-                                                          threshold_value_log_interpolation=self.threshold_value_log_interpolation,
-                                                          activate_interpolation_cleaning=self.activate_interpolation_cleaning,
-                                                          interpolation_cleaning_energy_relative_threshold=self.interpolation_cleaning_energy_relative_threshold,
-                                                          interpolation_cleaning_spatial_relative_threshold=self.interpolation_cleaning_spatial_relative_threshold)
+        if not model.consistent_bkg:
+            raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
+        evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
+
+        data_obs_all = np.zeros(tuple([len(evaluation_time), ]+list(shape_model))) * unit_model
+        for i in range(len(evaluation_time)):
+            if not interp:
+                selected_model_bin = model.get_closest_model(zenith=obs.get_pointing_altaz(evaluation_time[i]).zen,
+                                                             azimuth=obs.get_pointing_altaz(evaluation_time[i]).az)
+            else:
+                selected_model_bin = model.get_interpolated_model(zenith=obs.get_pointing_altaz(evaluation_time[i]).zen,
+                                                                  azimuth=obs.get_pointing_altaz(evaluation_time[i]).az)
+            data_obs_all[i] = selected_model_bin.data * selected_model_bin.unit
+
+        data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
+
+        if type_model is Background2D:
+            return Background2D(axes=axes_model, data=data_obs)
+        elif type_model is Background3D:
+            return Background3D(axes=axes_model, data=data_obs, fov_alignment=model.fov_alignment)
         else:
-            return self._create_model_cos_zenith_binned_without_azimuth_split(observations)
+            raise Exception('Unknown background format')
 
-    def create_acceptance_map_cos_zenith_binned(self,
-                                                observations: Observations,
-                                                off_observations: Observations = None,
-                                                base_model: BackgroundCollection = None
-                                                ) -> dict[int, BackgroundIRF]:
+    def create_acceptance_map_cos_zenith_binned(
+            self,
+            observations: Observations,
+            model: BackgroundCollectionZenith|BackgroundCollectionZenithSplitAzimuth,
+            ) -> dict[int, BackgroundIRF]:
         """
         Calculate an acceptance map per run using cos zenith binning
 
@@ -797,80 +787,35 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         observations : gammapy.data.observations.Observations
             The collection of observations to which the acceptance model will be applied
-        off_observations : gammapy.data.observations.Observations
-            The collection of observations used to generate the acceptance map, if None will be the observations provided as target
-            Will be ignored if a base_model parameter is provided
-        base_model : BackgroundCollectionZenith or BackgroundCollectionZenithSplitAzimuth
-            If you have already a precomputed model, the method will use this model as base for the acceptance map instead of computing it from the data
+        model : BackgroundCollectionZenith or BackgroundCollectionZenithSplitAzimuth
+            The method will use this model for the acceptance map
 
         Returns
         -------
         background : dict of gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
-            A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
+            A dictionary with the background IRF for each observation id.
 
         """
 
-        if off_observations is None:
-            off_observations = observations
-        elif base_model is not None:
-            logger.warning('The off observations provided will be ignored as a base model has been provided.')
-
-        # If needed produce the zenith binned model
-        if base_model is not None and not isinstance(base_model, BackgroundCollection):
+        if not isinstance(model, BackgroundCollection):
             error_message = 'The models should be provided as a BackgroundCollection object'
             logger.error(error_message)
             raise BackgroundModelFormatException(error_message)
-        collection_binned_model = base_model or self.create_model_cos_zenith_binned(off_observations)
-
-        if type(collection_binned_model) is BackgroundCollectionZenithSplitAzimuth:
-            east_observations, west_observations, splitted_obs = self._split_observations_azimuth(observations)
-        else:
-            east_observations = observations
-            west_observations = {}
-            splitted_obs = {}
-
-        # Determine model type and axes
-        type_model = collection_binned_model.type_model
-        axes_model = collection_binned_model.axes_model
-        unit_model = collection_binned_model.unit_model
-        shape_model = collection_binned_model.shape_model
 
         # Find the closest model for each observation and associate it to each observation
         acceptance_map = {}
-        observations_split = {'east':east_observations, 'west':west_observations}
-        for k in observations_split.keys():
-            acceptance_map[k] = {}
-            for obs in observations_split[k]:
-                if self.use_mini_irf_computation:
-                    if not collection_binned_model.consistent_bkg:
-                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
-                    evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
-
-                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model))) * unit_model
-                    for i in range(len(evaluation_time)):
-                        selected_model_bin = collection_binned_model.get_closest_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
-                        data_obs_all[i] = selected_model_bin.data * selected_model_bin.unit
-
-                    data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
-
-                    if type_model is Background2D:
-                        acceptance_map[k][obs.obs_id] = Background2D(axes=axes_model,
-                                                                  data=data_obs)
-                    elif type_model is Background3D:
-                        acceptance_map[k][obs.obs_id] = Background3D(axes=axes_model,
-                                                                  data=data_obs,
-                                                                  fov_alignment=collection_binned_model.fov_alignment)
-                    else:
-                        raise Exception('Unknown background format')
-
-                else:
-                    acceptance_map[k][obs.obs_id] = collection_binned_model.get_closest_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
-
-        return self._merge_model_azimuth(acceptance_map['east'], acceptance_map['west'], splitted_obs)
+        for obs in observations:
+            if self.use_mini_irf_computation:
+                acceptance_map[obs.obs_id] = self.apply_mini_irf(obs, model, interp=False)
+            else:
+                acceptance_map[obs.obs_id] = model.get_closest_model(zenith=obs.get_pointing_altaz(obs.tmid).zen,
+                                                                     azimuth=obs.get_pointing_altaz(obs.tmid).az)
+        return acceptance_map
 
     def _interpolate_bkg_to_energy_axis(self, data_bkg: u.Quantity, energy_axis_computation: MapAxis):
         """
-            Compute the final background model from the provided data by interpolating the energy axis used for computation to the ones for the model
+            Compute the final background model from the provided data by interpolating the energy axis used for
+            computation to the ones for the model
 
             Parameters
             ----------
@@ -925,13 +870,13 @@ class BaseAcceptanceMapCreator(ABC):
             Observations pointing east
         west_observations : gammapy.data.observations.Observations
             Observations pointing west
-        splitted_obs : Dict[int, Dict[str, Any]]
+        split_obs : Dict[int, Dict[str, Any]]
             Each entry store the time of each split (east and west)
         """
 
         east_observations = Observations()
         west_observations = Observations()
-        splitted_obs = {}
+        split_obs = {}
 
         for obs in observations:
             az_start = obs.get_pointing_altaz(obs.tstart).az
@@ -970,16 +915,16 @@ class BaseAcceptanceMapCreator(ABC):
                 if east_west:
                     east_observations.append(obs.select_time([obs.tstart, t_split]))
                     west_observations.append(obs.select_time([t_split, obs.tstop]))
-                    splitted_obs[obs.obs_id] = {'east_time': t_split-obs.tstart, 'west_time': obs.tstop-t_split}
+                    split_obs[obs.obs_id] = {'east_time': t_split-obs.tstart, 'west_time': obs.tstop-t_split}
                 else:
                     west_observations.append(obs.select_time([obs.tstart, t_split]))
                     east_observations.append(obs.select_time([t_split, obs.tstop]))
-                    splitted_obs[obs.obs_id] = {'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split}
+                    split_obs[obs.obs_id] = {'west_time': t_split-obs.tstart, 'east_time': obs.tstop-t_split}
 
-        return east_observations, west_observations, splitted_obs
+        return east_observations, west_observations, split_obs
 
     @staticmethod
-    def _merge_model_azimuth(east_models: Dict[int, BackgroundIRF], west_models: Dict[int, BackgroundIRF], splitted_obs: Dict[int, Dict[str, Any]]) -> Dict[int, BackgroundIRF]:
+    def _merge_model_azimuth(east_models: Dict[int, BackgroundIRF], west_models: Dict[int, BackgroundIRF], split_obs: Dict[int, Dict[str, Any]]) -> Dict[int, BackgroundIRF]:
         """
         Merge model, if a given observation cross the line, split it into two observations
 
@@ -989,8 +934,8 @@ class BaseAcceptanceMapCreator(ABC):
             The collection of models for east pointing observations, keys are obs id
         west_models : Dict[int, BackgroundIRF]
             The collection of models for west pointing observations, keys are obs id
-        splitted_obs : Dict[int, Dict[str, Any]]
-            Each dictionnary store an entry for an obs splitted in two (east and west)
+        split_obs : Dict[int, Dict[str, Any]]
+            Each dictionary store an entry for an obs split in two (east and west)
 
         Returns
         -------
@@ -999,11 +944,11 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         merged_models = {}
-        list_split_obs = [k for k in splitted_obs.keys()]
+        list_split_obs = [k for k in split_obs.keys()]
 
         for k in east_models:
             if k in list_split_obs:
-                data = (east_models[k].data * splitted_obs[k]['east_time'] + west_models[k].data * splitted_obs[k]['west_time'])/(splitted_obs[k]['east_time'] + splitted_obs[k]['west_time'])
+                data = (east_models[k].data * split_obs[k]['east_time'] + west_models[k].data * split_obs[k]['west_time'])/(split_obs[k]['east_time'] + split_obs[k]['west_time'])
                 if type(east_models[k]) is Background2D:
                     merged_models[k] = Background2D(axes=east_models[k].axes, data=data.to_value(u.dimensionless_unscaled)*east_models[k].unit)
                 elif type(east_models[k]) is Background3D:
@@ -1023,8 +968,7 @@ class BaseAcceptanceMapCreator(ABC):
 
     def create_acceptance_map_cos_zenith_interpolated(self,
                                                       observations: Observations,
-                                                      off_observations: Observations = None,
-                                                      base_model: BackgroundCollectionZenith = None
+                                                      model: BackgroundCollectionZenith
                                                       ) -> dict[int, BackgroundIRF]:
         """
         Calculate an acceptance map per run using cos zenith binning and interpolation
@@ -1033,11 +977,8 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         observations : gammapy.data.observations.Observations
             The collection of observations to which the acceptance model will be applied
-        off_observations : gammapy.data.observations.Observations
-            The collection of observations used to generate the acceptance map, if None will be the observations provided as target
-            Will be ignored if a base_model parameter is provideds
-        base_model : BackgroundCollectionZenith
-            If you have already a precomputed model, the method will use this model as base for the acceptance map instead of computing it from the data
+        model : BackgroundCollectionZenith
+            The method will use this model for the acceptance map
 
         Returns
         -------
@@ -1046,62 +987,64 @@ class BaseAcceptanceMapCreator(ABC):
 
         """
 
-        if off_observations is None:
-            off_observations = observations
-        elif base_model is not None:
-            logger.warning('The off observations provided will be ignored as a base model has been provided.')
-
         # If needed produce the zenith binned model
-        if base_model is not None and not isinstance(base_model, BackgroundCollection):
+        if not isinstance(model, BackgroundCollection):
             error_message = 'The models should be provided as a BackgroundCollection object'
             logger.error(error_message)
             raise BackgroundModelFormatException(error_message)
-        collection_binned_model = base_model or self.create_model_cos_zenith_binned(off_observations)
 
-        if type(collection_binned_model) is BackgroundCollectionZenithSplitAzimuth:
-            east_observations, west_observations, splitted_obs = self._split_observations_azimuth(observations)
-        else:
-            east_observations = observations
-            west_observations = {}
-            splitted_obs = {}
-
-        # Determine model type and axes
-        type_model = collection_binned_model.type_model
-        axes_model = collection_binned_model.axes_model
-        unit_model = collection_binned_model.unit_model
-        shape_model = collection_binned_model.shape_model
-
-        # Find the closest model for each observation and associate it to each observation
+        # Interpolate the model for each observation
         acceptance_map = {}
-        observations_split = {'east':east_observations, 'west':west_observations}
-        for k in observations_split.keys():
-            acceptance_map[k] = {}
-            # Perform the interpolation
-            for obs in observations_split[k]:
-                if self.use_mini_irf_computation:
-                    if not collection_binned_model.consistent_bkg:
-                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
-                    evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
-                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model)))
-                    for i in range(len(evaluation_time)):
-                        model_bin = collection_binned_model.get_interpolated_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
-                        data_obs_all[i] = (model_bin.data * model_bin.unit).to_value(unit_model)
+        # Perform the interpolation
+        for obs in observations:
+            if self.use_mini_irf_computation:
+                acceptance_map[obs.obs_id] = self.apply_mini_irf(obs, model, interp=True)
+            else:
+                acceptance_map[obs.obs_id] = model.get_interpolated_model(zenith=obs.get_pointing_altaz(obs.tmid).zen,
+                                                                          azimuth=obs.get_pointing_altaz(obs.tmid).az)
 
-                    data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
-                    if type_model is Background2D:
-                        acceptance_map[k][obs.obs_id] = Background2D(axes=axes_model,
-                                                                     data=data_obs)
-                    elif type_model is Background3D:
-                        acceptance_map[k][obs.obs_id] = Background3D(axes=axes_model,
-                                                                     data=data_obs,
-                                                                     fov_alignment=collection_binned_model.fov_alignment)
-                    else:
-                        raise Exception('Unknown background format')
+        return acceptance_map
 
-                else:
-                    acceptance_map[k][obs.obs_id]  = collection_binned_model.get_interpolated_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
+    def create_acceptance_model(self,
+                                off_observations: dict[str, Observations],
+                                zenith_binning: bool = False,
+                                zenith_interpolation: bool = False
+                                ) -> BackgroundIRF|BackgroundCollectionZenith:
+        models={}
+        for key in off_observations.keys():
+            if zenith_interpolation or zenith_binning:
+                models[key] = self.create_model_cos_zenith_binned(observations=off_observations[key])
+            else:
+                models[key] = self.create_model(observations=off_observations[key])
+        if self.azimuth_east_west_splitting:
+            model=BackgroundCollectionZenithSplitAzimuth(bkg_east=models['east'], bkg_west=models['west'],
+                                                         interpolation_type=self.interpolation_type,
+                                                         threshold_value_log_interpolation=self.threshold_value_log_interpolation,
+                                                         activate_interpolation_cleaning=self.activate_interpolation_cleaning,
+                                                         interpolation_cleaning_energy_relative_threshold=self.interpolation_cleaning_energy_relative_threshold,
+                                                         interpolation_cleaning_spatial_relative_threshold=self.interpolation_cleaning_spatial_relative_threshold
+                                                         )
+        elif len(models) == 1:
+            model=models['all']
+        else:
+            raise Exception('Supports only Azimuth splitting. '
+                            'keys of the Observations dict should be "all" or "east" and "west"')
+        return model
 
-        return self._merge_model_azimuth(acceptance_map['east'], acceptance_map['west'], splitted_obs)
+    def apply_model_per_observation(self,
+                                    observations: Observations,
+                                    model: Union[BackgroundCollectionZenith, BackgroundIRF],
+                                    zenith_binning: bool = False,
+                                    zenith_interpolation: bool = False,
+                                    ) -> dict[int, BackgroundIRF]:
+        if zenith_interpolation:
+            acceptance_map = self.create_acceptance_map_cos_zenith_interpolated(observations=observations, model=model)
+        elif zenith_binning:
+            acceptance_map = self.create_acceptance_map_cos_zenith_binned(observations=observations, model=model)
+        else:
+            acceptance_map = self.create_acceptance_map_all_run(observations=observations, model=model)
+        return acceptance_map
+
 
     def create_acceptance_map_per_observation(self,
                                               observations: Observations,
@@ -1136,21 +1079,39 @@ class BaseAcceptanceMapCreator(ABC):
         background : dict of gammapy.irf.background.Background2D or gammapy.irf.background.Background3D
             A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
         """
-
-        if zenith_interpolation:
-            acceptance_map = self.create_acceptance_map_cos_zenith_interpolated(observations=observations,
-                                                                                off_observations=off_observations,
-                                                                                base_model=base_model)
-        elif zenith_binning:
-            acceptance_map = self.create_acceptance_map_cos_zenith_binned(observations=observations,
-                                                                          off_observations=off_observations,
-                                                                          base_model=base_model)
+        if base_model is not None and off_observations is not None:
+            logger.warning('The off observations provided will be ignored as a base model has been provided.')
+            off_observations = None
+        if self.azimuth_east_west_splitting:
+            east_observations, west_observations, split_obs = self._split_observations_azimuth(observations)
+            observations_sets = {'east':east_observations, 'west':west_observations}
+            if off_observations is not None:
+                east_off_observations, west_off_observations, split_obs = self._split_observations_azimuth(observations)
+                off_observations_sets = {'east':east_off_observations, 'west':west_off_observations}
         else:
-            acceptance_map = self.create_acceptance_map_all_run(observations=observations,
-                                                                off_observations=off_observations,
-                                                                base_model=base_model)
+            observations_sets={'all':observations}
+            if off_observations is not None:
+                off_observations_sets = {'all':off_observations}
+        if off_observations is None:
+            off_observations_sets = observations_sets
+
+        model = base_model or self.create_acceptance_model(off_observations=off_observations_sets,
+                                                           zenith_binning=zenith_binning,
+                                                           zenith_interpolation=zenith_interpolation)
+        acceptance_map_set = {}
+        for key in observations_sets.keys():
+            acceptance_map_set[key] = self.apply_model_per_observation(observations=observations_sets[key],
+                                                                       zenith_binning=zenith_binning,
+                                                                       zenith_interpolation=zenith_interpolation,
+                                                                       model=model)
+        if self.azimuth_east_west_splitting:
+            acceptance_map = self._merge_model_azimuth(acceptance_map_set['east'],
+                                                       acceptance_map_set['west'],
+                                                       split_obs)
+        else:
+            acceptance_map = acceptance_map_set['all']
 
         if runwise_normalisation:
-            acceptance_map = self._normalised_model_per_run(observations, acceptance_map)
+            acceptance_map = self._normalise_model_per_run(observations, acceptance_map)
 
         return acceptance_map

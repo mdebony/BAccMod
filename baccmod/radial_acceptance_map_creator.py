@@ -124,7 +124,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
                          interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold)
 
-    def create_acceptance_map(self, observations: Observations) -> Background2D:
+    def create_model(self, observations: Observations) -> Background2D:
         """
         Calculate a radial acceptance map
 

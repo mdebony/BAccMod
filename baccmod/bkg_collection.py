@@ -10,6 +10,7 @@
 
 import logging
 from abc import ABC, abstractmethod
+from copy import copy
 from typing import Dict
 
 import numpy as np
@@ -135,7 +136,7 @@ class BackgroundCollection(ABC):
 
         # Return the model
         return self.type_model(axes=self.axes_model,
-                               data=interp_bkg,
+                               data=interp_bkg * self.unit_model,
                                fov_alignment=self.fov_alignment)
 
     def _background_cleaning(self, background_model):
@@ -144,20 +145,20 @@ class BackgroundCollection(ABC):
 
             Parameters
             ----------
-            background_model : astropy.units.Quantity
+            background_model : numpy.ndarray
                 The background model to be cleaned
 
             Returns
             -------
-            background_model : astropy.units.Quantity
+            background_model : numpy.ndarray
                 The background model cleaned
         """
 
-        base_model = background_model.copy().value
-        final_model = background_model.copy()
+        base_model = copy(background_model)
+        final_model = copy(background_model)
         i = 0
         while (i < 1 or not np.allclose(base_model, final_model)) and (i < self.max_cleaning_iteration):
-            base_model = final_model.copy()
+            base_model = copy(final_model)
             i += 1
 
             count_valid_neighbour_condition_energy = compute_neighbour_condition_validation(base_model, axis=0,
@@ -344,7 +345,7 @@ class BackgroundCollectionZenith(BackgroundCollection):
                 interp_bkg[interp_bkg < 100 * self.threshold_value_log_interpolation] = 0.
             elif self.interpolation_type == 'linear':
                 interp_bkg[interp_bkg < 0.] = 0.
-            return interp_bkg * self.unit_model
+            return interp_bkg
 
         return inter_wrapper
 
@@ -413,21 +414,25 @@ class BackgroundCollectionZenith(BackgroundCollection):
 class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
 
     def __init__(self,
-                 bkg_east: BackgroundCollectionZenith = None,
-                 bkg_west: BackgroundCollectionZenith = None,
+                 bkg_east: BackgroundCollectionZenith|BackgroundIRF,
+                 bkg_west: BackgroundCollectionZenith|BackgroundIRF,
                  **kwargs):
         """
             Create the class for storing a collection of model split in azimuth and for different zenith angle
 
             Parameters
             ----------
-            bkg_east : BackgroundCollectionZenith
+            bkg_east : BackgroundCollectionZenith or BackgroundIRF
                 The collection of model associated to the model pointing east
-            bkg_west : BackgroundCollectionZenith
+            bkg_west : BackgroundCollectionZenith or BackgroundIRF
                 The collection of model associated to the model pointing west
             **kwargs:
                 Arguments for the base class, see docstring of BackgroundCollection
         """
+        if isinstance(bkg_east, BackgroundIRF):
+            bkg_east = BackgroundCollectionZenith({45.0:bkg_east}, **kwargs)
+        if isinstance(bkg_west, BackgroundIRF):
+            bkg_west = BackgroundCollectionZenith({45.0:bkg_west}, **kwargs)
         super().__init__(bkg = {'east':bkg_east,
                                 'west':bkg_west},
                          **kwargs)

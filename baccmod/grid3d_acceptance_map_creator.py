@@ -227,7 +227,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         return fnc(x, y, **m.values.to_dict())
 
-    def create_acceptance_map(self, observations: Observations) -> Background3D:
+    def create_model(self, observations: Observations) -> Background3D:
         """
         Calculate a 3D grid acceptance map
 
