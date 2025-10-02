@@ -20,22 +20,21 @@ from astropy.coordinates.erfa_astrom import erfa_astrom, ErfaAstromInterpolator
 from astropy.time import Time
 from gammapy.data import Observations, Observation
 from gammapy.datasets import MapDataset
-from gammapy.irf import FoVAlignment, Background2D, Background3D
+from gammapy.irf import Background2D, Background3D
 from gammapy.irf.background import BackgroundIRF
 from gammapy.makers import MapDatasetMaker, SafeMaskMaker, FoVBackgroundMaker
 from gammapy.maps import WcsNDMap, WcsGeom, Map, MapAxis
 from regions import CircleSkyRegion, EllipseSkyRegion, SkyRegion
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-from scipy.optimize import root_scalar, bracket
+from scipy.optimize import root_scalar
 
 from .bkg_collection import BackgroundCollectionZenith, BackgroundCollection, BackgroundCollectionZenithSplitAzimuth
 from .exception import BackgroundModelFormatException
 from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
-                      generate_irf_from_mini_irf,
-                      compute_neighbour_condition_validation)
+                      generate_irf_from_mini_irf)
 
 logger = logging.getLogger(__name__)
 
@@ -464,7 +463,6 @@ class BaseAcceptanceMapCreator(ABC):
             east_observations = observations
             east_observations_off = off_observations
             west_observations = {}
-            west_observations_off = {}
             splitted_obs = {}
             east_model = base_model or self.create_acceptance_map(east_observations_off)
             west_model = east_model
@@ -777,8 +775,8 @@ class BaseAcceptanceMapCreator(ABC):
             obs_east, obs_west, _ = self._split_observations_azimuth(observations)
             east_model = self._create_model_cos_zenith_binned_without_azimuth_split(obs_east)
             west_model = self._create_model_cos_zenith_binned_without_azimuth_split(obs_west)
-            return BackgroundCollectionZenithSplitAzimuth(bkg_dict_east=east_model.bkg_dict,
-                                                          bkg_dict_west=west_model.bkg_dict,
+            return BackgroundCollectionZenithSplitAzimuth(bkg_east=east_model,
+                                                          bkg_west=west_model,
                                                           interpolation_type=self.interpolation_type,
                                                           threshold_value_log_interpolation=self.threshold_value_log_interpolation,
                                                           activate_interpolation_cleaning=self.activate_interpolation_cleaning,
@@ -802,7 +800,7 @@ class BaseAcceptanceMapCreator(ABC):
         off_observations : gammapy.data.observations.Observations
             The collection of observations used to generate the acceptance map, if None will be the observations provided as target
             Will be ignored if a base_model parameter is provided
-        base_model : BackgroundCollection
+        base_model : BackgroundCollectionZenith or BackgroundCollectionZenithSplitAzimuth
             If you have already a precomputed model, the method will use this model as base for the acceptance map instead of computing it from the data
 
         Returns
@@ -832,9 +830,10 @@ class BaseAcceptanceMapCreator(ABC):
             splitted_obs = {}
 
         # Determine model type and axes
-        ref_model = collection_binned_model.get_model_from_collection(collection_binned_model.get_zenith(80. * u.deg)[0], 80. * u.deg)
-        type_model = type(ref_model)
-        axes_model = ref_model.axes
+        type_model = collection_binned_model.type_model
+        axes_model = collection_binned_model.axes_model
+        unit_model = collection_binned_model.unit_model
+        shape_model = collection_binned_model.shape_model
 
         # Find the closest model for each observation and associate it to each observation
         acceptance_map = {}
@@ -843,11 +842,13 @@ class BaseAcceptanceMapCreator(ABC):
             acceptance_map[k] = {}
             for obs in observations_split[k]:
                 if self.use_mini_irf_computation:
+                    if not collection_binned_model.consistent_bkg:
+                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
                     evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
 
-                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(ref_model.data.shape))) * ref_model.unit
+                    data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model))) * unit_model
                     for i in range(len(evaluation_time)):
-                        selected_model_bin = collection_binned_model.get_binned_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
+                        selected_model_bin = collection_binned_model.get_closest_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
                         data_obs_all[i] = selected_model_bin.data * selected_model_bin.unit
 
                     data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
@@ -858,12 +859,12 @@ class BaseAcceptanceMapCreator(ABC):
                     elif type_model is Background3D:
                         acceptance_map[k][obs.obs_id] = Background3D(axes=axes_model,
                                                                   data=data_obs,
-                                                                  fov_alignment=FoVAlignment.ALTAZ)
+                                                                  fov_alignment=collection_binned_model.fov_alignment)
                     else:
                         raise Exception('Unknown background format')
 
                 else:
-                    acceptance_map[k][obs.obs_id] = collection_binned_model.get_binned_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
+                    acceptance_map[k][obs.obs_id] = collection_binned_model.get_closest_model(obs.get_pointing_altaz(obs.tmid).zen, obs.get_pointing_altaz(obs.tmid).az)
 
         return self._merge_model_azimuth(acceptance_map['east'], acceptance_map['west'], splitted_obs)
 
@@ -1065,11 +1066,10 @@ class BaseAcceptanceMapCreator(ABC):
             splitted_obs = {}
 
         # Determine model type and axes
-        ref_model = collection_binned_model.get_model_from_collection(collection_binned_model.get_zenith(80. * u.deg)[0], 80. * u.deg)
-        type_model = type(ref_model)
-        axes_model = ref_model.axes
-        shape_model = ref_model.data.shape
-        unit_model = ref_model.unit
+        type_model = collection_binned_model.type_model
+        axes_model = collection_binned_model.axes_model
+        unit_model = collection_binned_model.unit_model
+        shape_model = collection_binned_model.shape_model
 
         # Find the closest model for each observation and associate it to each observation
         acceptance_map = {}
@@ -1079,21 +1079,22 @@ class BaseAcceptanceMapCreator(ABC):
             # Perform the interpolation
             for obs in observations_split[k]:
                 if self.use_mini_irf_computation:
+                    if not collection_binned_model.consistent_bkg:
+                        raise Exception('Inconsistent background IRF incompatible with the use of mini-IRF computation')
                     evaluation_time, observation_time = get_time_mini_irf(obs, self.mini_irf_time_resolution)
-
                     data_obs_all = np.zeros(tuple([len(evaluation_time), ] + list(shape_model)))
                     for i in range(len(evaluation_time)):
                         model_bin = collection_binned_model.get_interpolated_model(obs.get_pointing_altaz(evaluation_time[i]).zen, obs.get_pointing_altaz(evaluation_time[i]).az)
-                        data_obs_all[i, :, :] = (model_bin.data * model_bin.unit).to_value(unit_model)
+                        data_obs_all[i] = (model_bin.data * model_bin.unit).to_value(unit_model)
 
                     data_obs = generate_irf_from_mini_irf(data_obs_all, observation_time)
                     if type_model is Background2D:
                         acceptance_map[k][obs.obs_id] = Background2D(axes=axes_model,
-                                                                     data=data_obs * unit_model)
+                                                                     data=data_obs)
                     elif type_model is Background3D:
                         acceptance_map[k][obs.obs_id] = Background3D(axes=axes_model,
-                                                                     data=data_obs * unit_model,
-                                                                     fov_alignment=FoVAlignment.ALTAZ)
+                                                                     data=data_obs,
+                                                                     fov_alignment=collection_binned_model.fov_alignment)
                     else:
                         raise Exception('Unknown background format')
 
@@ -1136,7 +1137,6 @@ class BaseAcceptanceMapCreator(ABC):
             A dict with observation number as key and a background model that could be used as an acceptance model associated at each key
         """
 
-        acceptance_map = {}
         if zenith_interpolation:
             acceptance_map = self.create_acceptance_map_cos_zenith_interpolated(observations=observations,
                                                                                 off_observations=off_observations,
