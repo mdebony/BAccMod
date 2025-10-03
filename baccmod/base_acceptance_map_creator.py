@@ -422,7 +422,7 @@ class BaseAcceptanceMapCreator(ABC):
 
     @staticmethod
     def create_acceptance_map_all_run(observations: Observations,
-                                      model: BackgroundIRF|BackgroundCollectionZenithSplitAzimuth
+                                      model: Union[BackgroundIRF, BackgroundCollectionZenithSplitAzimuth]
                                       ) -> dict[int, BackgroundIRF]:
         """
         Method to calculate an acceptance map associated at each run from a list of observations,
@@ -778,7 +778,7 @@ class BaseAcceptanceMapCreator(ABC):
     def create_acceptance_map_cos_zenith_binned(
             self,
             observations: Observations,
-            model: BackgroundCollectionZenith|BackgroundCollectionZenithSplitAzimuth,
+            model: Union[BackgroundCollectionZenith, BackgroundCollectionZenithSplitAzimuth],
             ) -> dict[int, BackgroundIRF]:
         """
         Calculate an acceptance map per run using cos zenith binning
@@ -1009,7 +1009,7 @@ class BaseAcceptanceMapCreator(ABC):
                                 off_observations: dict[str, Observations],
                                 zenith_binning: bool = False,
                                 zenith_interpolation: bool = False
-                                ) -> BackgroundIRF|BackgroundCollectionZenith:
+                                ) -> Union[BackgroundIRF,BackgroundCollectionZenith]:
         models={}
         for key in off_observations.keys():
             if zenith_interpolation or zenith_binning:

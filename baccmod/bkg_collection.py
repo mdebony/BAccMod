@@ -11,7 +11,7 @@
 import logging
 from abc import ABC, abstractmethod
 from copy import copy
-from typing import Dict
+from typing import Dict, Union
 
 import numpy as np
 from gammapy.irf.background import BackgroundIRF
@@ -414,8 +414,8 @@ class BackgroundCollectionZenith(BackgroundCollection):
 class BackgroundCollectionZenithSplitAzimuth(BackgroundCollection):
 
     def __init__(self,
-                 bkg_east: BackgroundCollectionZenith|BackgroundIRF,
-                 bkg_west: BackgroundCollectionZenith|BackgroundIRF,
+                 bkg_east: Union[BackgroundCollectionZenith,BackgroundIRF],
+                 bkg_west: Union[BackgroundCollectionZenith,BackgroundIRF],
                  **kwargs):
         """
             Create the class for storing a collection of model split in azimuth and for different zenith angle
