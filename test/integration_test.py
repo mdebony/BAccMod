@@ -133,9 +133,11 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_binned(observations=self.obs_collection_pks_2155,
-                                                                             model=binned_background_model)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_binning=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -150,10 +152,11 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+        background_model = bkg_maker.create_acceptance_map_per_observation(
             observations=self.obs_collection_pks_2155,
-            model=binned_background_model)
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -169,10 +172,11 @@ class TestIntegrationClass:
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                interpolation_zenith_type='log')
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+        background_model = bkg_maker.create_acceptance_map_per_observation(
             observations=self.obs_collection_pks_2155,
-            model=binned_background_model)
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -189,10 +193,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                interpolation_zenith_type='log',
                                                activate_interpolation_zenith_cleaning=True)
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+        background_model = bkg_maker.create_acceptance_map_per_observation(
             observations=self.obs_collection_pks_2155,
-            model=binned_background_model)
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -209,10 +214,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                use_mini_irf_computation=True,
                                                zenith_binning_run_splitting=True)
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+        background_model = bkg_maker.create_acceptance_map_per_observation(
             observations=self.obs_collection_pks_2155,
-            model=binned_background_model)
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -230,10 +236,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                use_mini_irf_computation=True,
                                                zenith_binning_run_splitting=True)
-        binned_background_model = bkg_maker.create_model_cos_zenith_binned(observations=self.obs_collection_pks_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
+        background_model = bkg_maker.create_acceptance_map_per_observation(
             observations=self.obs_collection_pks_2155,
-            model=binned_background_model)
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
