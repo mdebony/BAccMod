@@ -299,7 +299,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         if gammapy_major_version == 1 and gammapy_minor_version >= 3:
             acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
-                                          data=np.flip(data_background.to(u.Unit('s-1 MeV-1 sr-1')), axis=1),
+                                          data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
                                           fov_alignment=FoVAlignment.ALTAZ)
         else:
             acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
