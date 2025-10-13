@@ -9,7 +9,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name='BAccMod',
     packages=find_packages(),
-    version='0.4.0_dev',
+    version='0.4.0',
     license='LGPL v3',
     description='Calculate 2D and 3d acceptance model for creating maps with gammapy (IACT analysis)',
     url='https://github.com/mdebony/BAccMod',
