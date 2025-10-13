@@ -29,9 +29,6 @@ from baccmod.logging import MOREINFO
 
 logger = logging.getLogger(__name__)
 
-gammapy_major_version = gammapy.__version__.split('.')[0]
-gammapy_minor_version = gammapy.__version__.split('.')[1]
-
 
 class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
@@ -297,14 +294,9 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
 
-        if gammapy_major_version == 1 and gammapy_minor_version >= 3:
-            acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
-                                          data=np.flip(data_background.to(u.Unit('s-1 MeV-1 sr-1')), axis=1),
-                                          fov_alignment=FoVAlignment.ALTAZ)
-        else:
-            acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
-                                          data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
-                                          fov_alignment=FoVAlignment.ALTAZ)
+        acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
+                                      data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
+                                      fov_alignment=FoVAlignment.ALTAZ)
 
         return acceptance_map
 
