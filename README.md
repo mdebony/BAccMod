@@ -50,7 +50,7 @@ acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       offset_axis_acceptance,
                                                       exclude_regions=exclude_regions,
                                                       oversample_map=10)
-acceptance_model = acceptance_model_creator.create_acceptance_map(obs_collection)
+acceptance_model = acceptance_model_creator.create_model(obs_collection)
 
 ```
 
