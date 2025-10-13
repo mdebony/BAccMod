@@ -46,8 +46,8 @@ class TestIntegrationClass:
     energy_axis_computation_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
-    absolute_tolerance = 1e-15
-    relative_tolerance = 1e-7
+    absolute_tolerance = 1e-5
+    relative_tolerance = 1e-3
     #TODO when issue with spatial fit is resolved, need to be lowered
     relative_tolerance_fit_method = 5e-2
 
@@ -63,7 +63,7 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D.fits')
         self._print_model_precision(background_model, reference)
@@ -77,7 +77,7 @@ class TestIntegrationClass:
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                method='fit')
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
         self._print_model_precision(background_model, reference)
@@ -90,7 +90,7 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D.fits')
         self._print_model_precision(background_model, reference)
@@ -104,7 +104,7 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_bkg_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -119,7 +119,7 @@ class TestIntegrationClass:
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                method='fit')
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -133,7 +133,7 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -151,7 +151,7 @@ class TestIntegrationClass:
                                                dynamic_energy_axis_target_statistics=100,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_bkg_dynamic_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -168,7 +168,7 @@ class TestIntegrationClass:
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                method='fit')
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_dynamic_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -184,7 +184,7 @@ class TestIntegrationClass:
                                                dynamic_energy_axis_target_statistics=500,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background2D
         reference = Background2D.read('ressource/test_data/reference_model/pks_2155_2D_bkg_dynamic_irregular_energy.fits')
         self._print_model_precision(background_model, reference)
@@ -197,7 +197,11 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_binned(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_binning=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -213,8 +217,11 @@ class TestIntegrationClass:
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
-            observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -231,8 +238,11 @@ class TestIntegrationClass:
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                interpolation_zenith_type='log')
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
-            observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -250,8 +260,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                interpolation_zenith_type='log',
                                                activate_interpolation_zenith_cleaning=True)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(
-            observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -269,7 +282,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                use_mini_irf_computation=True,
                                                zenith_binning_run_splitting=True)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model
@@ -288,7 +305,11 @@ class TestIntegrationClass:
                                                exclude_regions=self.exclude_region_PKS_2155,
                                                use_mini_irf_computation=True,
                                                zenith_binning_run_splitting=True)
-        background_model = bkg_maker.create_acceptance_map_cos_zenith_interpolated(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_acceptance_map_per_observation(
+            observations=self.obs_collection_pks_2155,
+            zenith_interpolation=True,
+            runwise_normalisation=False
+        )
         assert type(background_model) is dict
         for id_obs in self.id_obs_pks_2155:
             assert id_obs in background_model

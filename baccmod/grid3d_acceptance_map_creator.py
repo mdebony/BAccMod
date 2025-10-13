@@ -56,6 +56,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  fit_fnc='gaussian2d',
                  fit_seeds=None,
                  fit_bounds=None,
+                 azimuth_east_west_splitting = False,
                  interpolation_zenith_type: str = 'linear',
                  activate_interpolation_zenith_cleaning: bool = False,
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
@@ -115,6 +116,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             Should improve the accuracy of the model, especially at high zenith angle.
         mini_irf_time_resolution : astropy.units.Quantity, optional
             Time resolution to use for mini irf used for computation of the final background model
+        azimuth_east_west_splitting: bool, optional
+            if true will make a separate model of east oriented and west oriented data
         interpolation_zenith_type: str, optional
             Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
         activate_interpolation_zenith_cleaning: bool, optional
@@ -161,6 +164,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          use_mini_irf_computation=use_mini_irf_computation,
                          mini_irf_time_resolution=mini_irf_time_resolution,
                          interpolation_zenith_type=interpolation_zenith_type,
+                         azimuth_east_west_splitting=azimuth_east_west_splitting,
                          activate_interpolation_zenith_cleaning=activate_interpolation_zenith_cleaning,
                          interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
                          interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold)
@@ -236,7 +240,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         return fnc(x, y, **m.values.to_dict())
 
-    def create_acceptance_map(self, observations: Observations) -> Background3D:
+    def create_model(self, observations: Observations) -> Background3D:
         """
         Calculate a 3D grid acceptance map
 
