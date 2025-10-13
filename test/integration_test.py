@@ -14,7 +14,7 @@ from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator
 import gammapy
 gammapy_version = gammapy.__version__
 gammapy_ver_major = int(gammapy_version.split('.')[0])
-gammapy_ver_minor = int(gammapy_version.split('.')[1])
+gammapy_ver_minor = int(gammapy_version.split('.')[1][0])
 gammapy_ver_patch = 0
 if len(gammapy_version.split('.')) > 2:
     gammapy_ver_patch = int(gammapy_version.split('.')[2])
@@ -33,7 +33,7 @@ class TestIntegrationClass:
 
     # Inject HESS site information in the run
     for i in obs_collection_pks_2155:
-        if gammapy_ver_minor < 3:
+        if gammapy_ver_major == 1 and gammapy_ver_minor < 3:
             obs_collection_pks_2155[i].obs_info['GEOLON'] = 16.50004902672975
             obs_collection_pks_2155[i].obs_info['GEOLAT'] = -23.271584051253615
             obs_collection_pks_2155[i].obs_info['GEOALT'] = 1800
