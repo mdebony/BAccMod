@@ -9,8 +9,7 @@
 name: Test creation and upload of packages
 
 on:
-  release:
-    types: [deleted]
+  workflow_dispatch
 
 permissions:
   contents: read
