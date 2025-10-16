@@ -1164,7 +1164,7 @@ class BaseAcceptanceMapCreator(ABC):
                               observations: Observations
                               ) -> Tuple[dict[str, Observations], Dict[int, Dict[str, Any]]]:
         """
-
+        Perform observation splitting and gather them into named subsets.
         Parameters
         ----------
         observations: gammapy.data.observations.Observations
