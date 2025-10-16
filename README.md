@@ -22,7 +22,14 @@ Dependencies :
 
 ## Basic use
 
-You could first create the acceptance (or background) model
+User interface is through two main functions available in any of the modelisation classes.
+One function allows for the creation of a background IRF model or collection of models which can be used in later steps.
+The second function applies a model, either created dynamically or created before, to observations to associate a new
+background IRF to each one.
+
+### Example
+Below is an example of the creation of a single background model with radial symmetry using directly the observations of
+interest, and the application of this model to all the observations. This is not the adviced usage of the package.
 
 ```python
 from gammapy.maps import MapAxis
@@ -45,11 +52,13 @@ e_min, e_max = 0.1 * u.TeV, 10. * u.TeV
 size_fov = 2.5 * u.deg
 offset_axis_acceptance = MapAxis.from_bounds(0. * u.deg, size_fov, nbin=6, name='offset')
 energy_axis_acceptance = MapAxis.from_energy_bounds(e_min, e_max, nbin=6, name='energy')
-
+```
+First step is to create an instance of one of the model creation class. Here the `RadialAcceptanceMapCreator` to which 
+we provide minimal inputs : the axis binning and exclusion region to remove the Crab Nebula.
+```python
 acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       offset_axis_acceptance,
-                                                      exclude_regions=exclude_regions,
-                                                      oversample_map=10)
+                                                      exclude_regions=exclude_regions)
 acceptance_model = acceptance_model_creator.create_model(obs_collection)
 
 ```
@@ -68,7 +77,8 @@ hdu_acceptance.writeto('acceptance.fits', overwrite=True)
 ```
 
 It's then possible to load the acceptance model in the current gammapy DataStore with this code.
-You would need then to recreate you gammapy Observations object in order than the acceptance model is taken into account for the analysis.
+You would need then to recreate your gammapy Observations object in order than the acceptance model is taken into
+account for the analysis.
 
 ```python
 data_store.hdu_table.remove_rows(data_store.hdu_table['HDU_TYPE']=='bkg')
@@ -89,6 +99,69 @@ data_store.hdu_table
 
 > [!WARNING]  
 > Due to some change in gammapy 1.3, it's strongly suggested to use only use models that have been created with the same version of gammapy used
+
+
+### Available model
+
+All models have an identical interface. You just need to change the class used to change the model created.
+
+There are two model currently available :
+
+- A 2D model with hypothesis of a radial symmetry of the background across the FoV. This is the class `RadialAcceptanceMapCreator`.
+    ````python
+    from baccmod import RadialAcceptanceMapCreator
+    acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
+                                                          offset_axis_acceptance,
+                                                          exclude_regions=exclude_regions)    
+    ````
+- A 3D model with a regular grid describing the FoV. This is the class `Grid3DAcceptanceMapCreator`. This class support
+the use of either a direct event stacking or the fitting of spatial models to create the IRF.
+    ````python
+    from baccmod import Grid3DAcceptanceMapCreator
+    acceptance_model_creator = Grid3DAcceptanceMapCreator(energy_axis_acceptance,
+                                                          offset_axis_acceptance,
+                                                          exclude_regions=exclude_regions,
+                                                          method='stack' or 'fit' (default is 'stack'))
+    ````
+
+Each class accepts a set of optionnal parameters described in its docstring. The majority are common and allow to
+activate or control options such as splitting of the data in azimuth or in zenith bins, and interpolation. Some are 
+described later in this document.
+
+### Model creation
+
+Once the acceptance_model_creator is initated, the method `create_acceptance_model` can be used to create and output
+a background model. While the stteings of the zenith binning or interpolation are defined during the class object 
+creation, the decision to use one or the other is done at the time of the call : 
+
+````python
+model = acceptance_model_creator.create_acceptance_model(# observations used to create the models
+                                                         off_observations,
+                                                         # Activates the zenith binning
+                                                         zenith_binning = False
+                                                )
+````
+
+A model created with zenith binning will be valid for application with the zenith interpolation later.
+
+### Observation-wise IRF application
+
+To associate a background IRF to a set of observations, the user should use the function
+`create_acceptance_map_per_observation`. It can either, and in this order of priority, apply a provided model, 
+create a model from off observations and apply it, or create a model fron the target observation and apply it.
+
+````python
+# acceptance_map will be a dictionnary of obs_id to BackgroundIRF
+acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(
+  observations, # Target observations
+  zenith_binning = False, # Activates the zenith binning (ignored if interpolating)
+  zenith_interpolation = False, # Activates the zenith interpolation
+  runwise_normalisation = True, # If True, the IRF for the target observations is renormalised to the observed counts
+  off_observations = None, # observations to use to create a model if none is provided. If None, `observations`is used.
+  base_model = None # model to apply if provided
+)
+
+````
 
 ## Logging setup
 
@@ -173,25 +246,19 @@ for i in obs_collection:
     obs_collection[i]._location = loc
 ```
 
-## Runwise norm of the model 
-
-It's also possible to fit the normalisation of the model per run. For this use the method create_acceptance_map_per_observation .
-In that case the output is a dictionary containing the acceptance model of each observations (with the observation Id as index).
-```python
-acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
-                                                      offset_axis_acceptance,
-                                                      exclude_regions=exclude_regions,
-                                                      oversample_map=10)
-acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection)
-```
-
 ## Zenith binned model
 
-It's also possible to create model binned per cos zenith. For this use the method create_acceptance_map_per_observation but with the option `zenith_binning` set at True.
-The width of zenith bin could be control at the creation of the object with the parameter `initial_cos_zenith_binning`.
-You can chose the `cos_zenith_binning_method`: `min_livetime` or `min_n_observation`  to give a condition on minimum livetime or number of observations for each bin. The algorithm will then automatically rebin to larger bin in order to have in each bin at least `cos_zenith_binning_parameter_value` livetime (in seconds) or observation per bin. If you add `_per_wobble` to the method name, wobbles will be identified and the binning will require the condition to be fulfilled for each identified wobble.
-In that case the output is a dictionary containing the acceptance model of each observations (with the observation ID as index).
-Set `verbose` to True to get the binning result and a plot of the binned livetime.
+It's also possible to create model binned per cos zenith. For this in the methods create_acceptance_model or 
+create_acceptance_map_per_observation set the option `zenith_binning` at True.
+The minimum width of zenith bin can be controlled at the creation of the object with the parameter
+`initial_cos_zenith_binning`. You can chose the `cos_zenith_binning_method`: `min_livetime` or `min_n_observation` 
+to give a condition on minimum livetime or number of observations for each bin. The algorithm will then automatically 
+rebin to larger bin in order to have in each bin at least `cos_zenith_binning_parameter_value` livetime (in seconds) or
+observation per bin. If you add `_per_wobble` to the method name, wobbles will be identified and the binning will
+require the condition to be fulfilled for each identified wobble.
+(with the observation ID as index). Set `verbose` to True to get the binning result and a plot of the binned livetime.
+
+Example : 
 ```python
 acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       offset_axis_acceptance,
@@ -199,37 +266,37 @@ acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       oversample_map=10,
                                                       cos_zenith_binning_method='min_livetime_per_wobble',
                                                       cos_zenith_binning_parameter_value=3600,
-                                                      initial_cos_zenith_binning=0.01,
-                                                      verbose=True)
+                                                      initial_cos_zenith_binning=0.01)
 acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection,
                                                                                    zenith_binning=True)
 ```
 
 ## Zenith interpolated model
 
-It's also possible to create model interpolated between the binned model per cos zenith. For this use the method create_acceptance_map_per_observation but with the option `zenith_interpolation` set at True. All the parameters controlling the cos zenith binning remain active.
+It's also possible to create model interpolated between the binned model per cos zenith. 
+For this use the method create_acceptance_map_per_observation but with the option `zenith_interpolation` set at True.
+All the parameters controlling the cos zenith binning remain active.
 ```python
 acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       offset_axis_acceptance,
                                                       exclude_regions=exclude_regions,
                                                       oversample_map=10,
                                                       min_run_per_cos_zenith_bin=3,
-                                                      initial_cos_zenith_binning=0.01)
+                                                      initial_cos_zenith_binning=0.01,
+                                                      interpolation_zenith_type = 'linear' or 'log')
 acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection,
-                                                                                   zenith_binning=True,
+                                                                                   zenith_binning=True, # ignored
                                                                                    zenith_interpolation=True)
 ```
 
 ## Using OFF runs for background model
 
-It is also possible to create a model from OFF runs and to apply in ON runs you want to analyse. The exclusions regions should cover potential sources both in the ON and OFF runs at the same time. The OFF runs don't need to be spatially connected.
+It is possible to create a model from OFF runs and to apply in ON runs you want to analyse.
+The exclusions regions should cover potential sources both in the ON and OFF runs at the same time, 
+or the model can be created beforehand.
+The OFF runs don't need to be spatially connected.
 ```python
-acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
-                                                      offset_axis_acceptance,
-                                                      exclude_regions=exclude_regions,
-                                                      oversample_map=10,
-                                                      min_run_per_cos_zenith_bin=3,
-                                                      initial_cos_zenith_binning=0.01)
+
 acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection,
                                                                                    off_observations=obs_collection_off,
                                                                                    zenith_binning=True,
@@ -256,7 +323,8 @@ acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
                                                       oversample_map=10,
                                                       min_run_per_cos_zenith_bin=3,
                                                       initial_cos_zenith_binning=0.01)
-base_model = acceptance_model_creator.create_model_cos_zenith_binned(obs_collection)
+base_model = acceptance_model_creator.create_acceptance_model(obs_collection,
+                                                              zenith_binning=True)
 ```
 
 ### Storing and loading a model with pickle
@@ -321,25 +389,4 @@ acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
 acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection)
 ```
 
-# Available model
 
-All models have an identical interface. You just need to change the class used to change the model created.
-
-There are two model currently available :
-
-- A 2D model with hypothesis of a radial symmetry of the background across the FoV. This is the class `RadialAcceptanceMapCreator`.
-    ````python
-    from baccmod import RadialAcceptanceMapCreator
-    acceptance_model_creator = RadialAcceptanceMapCreator(energy_axis_acceptance,
-                                                          offset_axis_acceptance,
-                                                          exclude_regions=exclude_regions)
-    acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection)     
-    ````
-- A 3D model with a regular grid describing the FoV. This is the class `Grid3DAcceptanceMapCreator`.
-    ````python
-    from baccmod import Grid3DAcceptanceMapCreator
-    acceptance_model_creator = Grid3DAcceptanceMapCreator(energy_axis_acceptance,
-                                                          offset_axis_acceptance,
-                                                          exclude_regions=exclude_regions)
-    acceptance_models = acceptance_model_creator.create_acceptance_map_per_observation(obs_collection)     
-    ````

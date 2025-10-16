@@ -1186,8 +1186,7 @@ class BaseAcceptanceMapCreator(ABC):
 
     def create_acceptance_model(self,
                                 off_observations: Observations,
-                                zenith_binning: bool = False,
-                                zenith_interpolation: bool = False
+                                zenith_binning: bool = False
                                 ) -> Union[BackgroundIRF,BackgroundCollectionZenith]:
         """
         A high level function to create a background model from observations.
@@ -1195,7 +1194,6 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         off_observations: gammapy.data.observations.Observations
         zenith_binning: bool
-        zenith_interpolation: bool
 
         Returns
         -------
@@ -1203,7 +1201,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         off_observations_sets, _ = self._cluster_observations(off_observations)
-        return self._create_acceptance_model(off_observations_sets, zenith_binning, zenith_interpolation)
+        return self._create_acceptance_model(off_observations_sets, zenith_binning)
 
     def _create_acceptance_model(self,
                                  off_observations: dict[str, Observations],
