@@ -38,29 +38,11 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                  oversample_map: int = 10,
                  energy_axis_computation: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
-                 dynamic_energy_axis: bool = False,
-                 dynamic_energy_axis_target_statistics: int = 500,
-                 dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
-                 dynamic_energy_axis_merge_zeros_low_energy: bool = False,
-                 dynamic_energy_axis_merge_zeros_high_energy: bool = False,
-                 cos_zenith_binning_method: str = 'min_livetime',
-                 cos_zenith_binning_parameter_value: int = 3600,
-                 initial_cos_zenith_binning: float = 0.01,
-                 max_angular_separation_wobble: u.Quantity = 0.4 * u.deg,
-                 zenith_binning_run_splitting: bool = False,
-                 max_fraction_pixel_rotation_fov: float = 0.5,
-                 time_resolution: u.Quantity = 0.1 * u.s,
-                 use_mini_irf_computation: bool = False,
-                 mini_irf_time_resolution: u.Quantity = 1. * u.min,
                  method='stack',
                  fit_fnc='gaussian2d',
                  fit_seeds=None,
                  fit_bounds=None,
-                 azimuth_east_west_splitting = False,
-                 interpolation_zenith_type: str = 'linear',
-                 activate_interpolation_zenith_cleaning: bool = False,
-                 interpolation_cleaning_energy_relative_threshold: float = 1e-4,
-                 interpolation_cleaning_spatial_relative_threshold: float = 1e-2) -> None:
+                 **kwargs) -> None:
         """
         Create the class for calculating 3D grid acceptance model
 
@@ -76,31 +58,6 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
-        dynamic_energy_axis: bool
-            if True, the energy axis will for computation will be determined independently for each model, the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
-        dynamic_energy_axis_target_statistics: int
-            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
-        dynamic_energy_axis_maximum_wideness_bin: float
-            energy bin will not be merged if the resulting bin will be wider (in logorarithmic space) than this value
-        dynamic_energy_axis_merge_zeros_low_energy: bool
-            decides if empty energy bins at low energy are merged during the dynamic binning
-        dynamic_energy_axis_merge_zeros_high_energy: bool
-            decides if empty energy bins at high energy are merged during the dynamic binning
-        cos_zenith_binning_method : str, optional
-            The method used for cos zenith binning: 'min_livetime','min_n_observation'
-        cos_zenith_binning_parameter_value : int, optional
-            Minimum livetime (in seconds) or number of observations per zenith bins
-        initial_cos_zenith_binning : float, optional
-            Initial bin size for cos zenith binning
-        max_angular_separation_wobble : u.Quantity, optional
-            The maximum angular separation between identified wobbles, in degrees
-        zenith_binning_run_splitting : float, optional
-            If true, will split each run to match zenith binning for the base model computation
-            Could be computationally expensive, especially at high zenith with a high resolution zenith binning
-        max_fraction_pixel_rotation_fov : bool, optional
-            For camera frame transformation the maximum size relative to a pixel a rotation is allowed
-        time_resolution : astropy.units.Quantity, optional
-            Time resolution to use for the computation of the rotation of the FoV and cut as function of the zenith bins
         method : str, optional
             Decide if the acceptance is a direct event stacking or a fitted model. 'stack' or 'fit'
         fit_fnc: str or function
@@ -110,22 +67,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             Seeds of the parameters of the function to fit. Normalisation parameter is ignored if given.
         fit_bounds: dict, can optionally be None if using a built-in function
             Bounds of the parameters of the function to fit. Normalisation parameter is ignored if given.
-        use_mini_irf_computation : bool, optional
-            If true, in case the case of zenith interpolation or binning, each run will be divided in small subrun (the slicing is based on time).
-            A model will be computed for each sub run before averaging them to obtain the final model for the run.
-            Should improve the accuracy of the model, especially at high zenith angle.
-        mini_irf_time_resolution : astropy.units.Quantity, optional
-            Time resolution to use for mini irf used for computation of the final background model
-        azimuth_east_west_splitting: bool, optional
-            if true will make a separate model of east oriented and west oriented data
-        interpolation_zenith_type: str, optional
-            Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
-        activate_interpolation_zenith_cleaning: bool, optional
-            If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
-        interpolation_cleaning_energy_relative_threshold: float, optional
-            To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
-        interpolation_cleaning_spatial_relative_threshold: float, optional
-            To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
+        ** kwargs
+            Additional arguments for controlling background creation, see documentation of BaseAcceptanceMapCreator for more details
         """
 
         # If no exclusion region, default it as an empty list
@@ -149,25 +92,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          spatial_resolution=spatial_resolution,
                          energy_axis_computation=energy_axis_computation,
                          exclude_regions=exclude_regions,
-                         dynamic_energy_axis=dynamic_energy_axis,
-                         dynamic_energy_axis_target_statistics=dynamic_energy_axis_target_statistics,
-                         dynamic_energy_axis_maximum_wideness_bin=dynamic_energy_axis_maximum_wideness_bin,
-                         dynamic_energy_axis_merge_zeros_low_energy=dynamic_energy_axis_merge_zeros_low_energy,
-                         dynamic_energy_axis_merge_zeros_high_energy=dynamic_energy_axis_merge_zeros_high_energy,
-                         cos_zenith_binning_method=cos_zenith_binning_method,
-                         cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
-                         initial_cos_zenith_binning=initial_cos_zenith_binning,
-                         max_angular_separation_wobble=max_angular_separation_wobble,
-                         zenith_binning_run_splitting=zenith_binning_run_splitting,
-                         max_fraction_pixel_rotation_fov=max_fraction_pixel_rotation_fov,
-                         time_resolution=time_resolution,
-                         use_mini_irf_computation=use_mini_irf_computation,
-                         mini_irf_time_resolution=mini_irf_time_resolution,
-                         interpolation_zenith_type=interpolation_zenith_type,
-                         azimuth_east_west_splitting=azimuth_east_west_splitting,
-                         activate_interpolation_zenith_cleaning=activate_interpolation_zenith_cleaning,
-                         interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
-                         interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold)
+                         **kwargs)
 
         self.method = method
         self.fit_fnc = fit_fnc
