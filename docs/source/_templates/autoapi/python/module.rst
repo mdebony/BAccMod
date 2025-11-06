@@ -1,4 +1,3 @@
-{# Show only the last segment as the page title #}
 {% set display_name = obj.name.split(".")[-1] %}
 
 {{ display_name }}
@@ -6,7 +5,6 @@
 
 .. py:module:: {{ obj.name }}
 
-{# Absolute base docname for this module, e.g. /autoapi/baccmod/toolbox #}
 {% set base = "/autoapi/" + obj.name.replace(".", "/") %}
 
 .. toctree::
@@ -25,6 +23,17 @@ Classes
    :titlesonly:
 
    {{ base }}/[A-Z]*
+{% endif %}
+
+{% if "function" in own_page_types %}
+Functions
+---------
+.. toctree::
+   :maxdepth: 1
+   :glob:
+   :titlesonly:
+
+   {{ base }}/[a-z0-9_]*   {# matches module-level function pages like log_poisson.rst #}
 {% endif %}
 
 {% if obj.docstring %}

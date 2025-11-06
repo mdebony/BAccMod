@@ -25,8 +25,7 @@ autoapi_keep_files = False
 autoapi_add_toctree_entry = False
 autoapi_python_class_content = "both"
 autoapi_member_order = "bysource"
-autoapi_use_multiple_pages = True
-autoapi_own_page_level = "class"
+autoapi_own_page_level = "function"
 autoapi_template_dir = "_templates/autoapi"
 
 nitpick_ignore = [
