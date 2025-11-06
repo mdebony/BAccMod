@@ -1,13 +1,8 @@
-API Reference (Classes Only)
-============================
+API Reference
+=============
 
 .. toctree::
-   :maxdepth: 1
-   :glob:
-
-   autoapi/baccmod/**/[A-Z]*
-
-.. toctree::
-   :hidden:
+   :maxdepth: 5
+   :titlesonly:
 
    autoapi/baccmod/index

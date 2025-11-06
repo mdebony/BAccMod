@@ -18,17 +18,20 @@ extensions = [
     "autoapi.extension",
     "sphinx.ext.napoleon",       # support Google / NumPy style docstrings
     "sphinx.ext.viewcode",       # add links to source
-    "sphinx.ext.autosummary",    # optional: summary tables
 ]
 
 autoapi_dirs = ["../../baccmod"]  # path from docs/source to your package
-autoapi_keep_files = True
+autoapi_keep_files = False
 autoapi_add_toctree_entry = False
 autoapi_python_class_content = "both"
 autoapi_member_order = "bysource"
 autoapi_use_multiple_pages = True
 autoapi_own_page_level = "class"
+autoapi_template_dir = "_templates/autoapi"
 
+nitpick_ignore = [
+    ("py:class", "BackgroundCollectionZenith"),
+]
 
 
 # -- Napoleon settings (if you use NumPy or Google style docstrings) -----
