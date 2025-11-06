@@ -6,7 +6,29 @@
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 # ---------------------------------------------------------------------
 
-from .base_acceptance_map_creator import BaseAcceptanceMapCreator
-from .grid3d_acceptance_map_creator import Grid3DAcceptanceMapCreator
-from .radial_acceptance_map_creator import RadialAcceptanceMapCreator
-from .bkg_collection import BackgroundCollectionZenith
+from importlib import import_module
+
+__all__ = [
+    "base_acceptance_map_creator",
+    "grid3d_acceptance_map_creator",
+    "radial_acceptance_map_creator",
+    "bkg_collection",
+    "exception",
+    "logging",
+    "modeling",
+    "toolbox",
+]
+
+_alias_map = {
+    "BaseAcceptanceMapCreator": "baccmod.base_acceptance_map_creator",
+    "Grid3DAcceptanceMapCreator": "baccmod.grid3d_acceptance_map_creator",
+    "RadialAcceptanceMapCreator": "baccmod.radial_acceptance_map_creator",
+    "BackgroundCollectionZenith": "baccmod.bkg_collection",
+    "BackgroundCollectionZenithSplitAzimuth": "baccmod.bkg_collection",
+}
+
+def __getattr__(name: str):
+    mod = _alias_map.get(name)
+    if mod is None:
+        raise AttributeError(f"module 'baccmod' has no attribute {name!r}")
+    return getattr(import_module(mod), name)
