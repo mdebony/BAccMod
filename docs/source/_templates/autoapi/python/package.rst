@@ -1,5 +1,8 @@
-{{ obj.name }}
-{{ "=" * obj.name|length }}
+{# Show only the last segment as the page title #}
+{% set display_name = obj.name.split(".")[-1] %}
+
+{{ display_name }}
+{{ "=" * display_name|length }}
 
 .. py:module:: {{ obj.name }}
 
@@ -15,7 +18,6 @@ Contents
 
    {{ base }}/*/index
 
-{# Include classes **directly under the package** (aliases/re-exports) #}
 {% if "class" in own_page_types %}
 Classes
 -------

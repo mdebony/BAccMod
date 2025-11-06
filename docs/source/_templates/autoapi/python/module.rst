@@ -1,12 +1,14 @@
-{{ obj.name }}
-{{ "=" * obj.name|length }}
+{# Show only the last segment as the page title #}
+{% set display_name = obj.name.split(".")[-1] %}
+
+{{ display_name }}
+{{ "=" * display_name|length }}
 
 .. py:module:: {{ obj.name }}
 
-{# Absolute base docname for this module, e.g. /autoapi/baccmod/bkg_collection #}
+{# Absolute base docname for this module, e.g. /autoapi/baccmod/toolbox #}
 {% set base = "/autoapi/" + obj.name.replace(".", "/") %}
 
-{# Submodules (if any) #}
 .. toctree::
    :maxdepth: 1
    :glob:
@@ -14,7 +16,6 @@
 
    {{ base }}/*/index
 
-{# Classes defined in this module (AutoAPI writes class pages as PascalCase docs) #}
 {% if "class" in own_page_types %}
 Classes
 -------
