@@ -15,11 +15,21 @@ release = '0.4.0_dev'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx.ext.autodoc",        # core: pull docstrings
+    "autoapi.extension",
     "sphinx.ext.napoleon",       # support Google / NumPy style docstrings
     "sphinx.ext.viewcode",       # add links to source
     "sphinx.ext.autosummary",    # optional: summary tables
 ]
+
+autoapi_dirs = ["../../baccmod"]  # path from docs/source to your package
+autoapi_keep_files = True
+autoapi_add_toctree_entry = False
+autoapi_python_class_content = "both"
+autoapi_member_order = "bysource"
+autoapi_use_multiple_pages = True
+autoapi_own_page_level = "class"
+
+
 
 # -- Napoleon settings (if you use NumPy or Google style docstrings) -----
 napoleon_google_docstring = True
@@ -32,8 +42,6 @@ napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
 
-# -- General configuration -------------------------------------------------
-autosummary_generate = True  # turn on autosummary stub generation
 
 # If your package is not on sys.path by default, insert it. Example assuming docs/ is sibling to package:
 import os
