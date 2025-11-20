@@ -5,39 +5,53 @@
 
 .. py:module:: {{ obj.name }}
 
-{% set base = "/autoapi/" + obj.name.replace(".", "/") %}
+{% if obj.docstring %}
+.. autoapi-nested-parse::
+   {{ obj.docstring|indent(3) }}
+{% endif %}
 
-Contents
---------
+{# Subpackages and submodules of this package #}
+{% set subpackages = obj.subpackages | selectattr("display") | list %}
+{% set submodules = obj.submodules | selectattr("display") | list %}
+{% set visible_submodules = (subpackages + submodules) | sort %}
+
+{% if visible_submodules %}
+Submodules
+----------
 .. toctree::
    :maxdepth: 2
-   :glob:
    :titlesonly:
 
-   {{ base }}/*/index
+{% for sub in visible_submodules %}
+   {{ sub.include_path }}
+{% endfor %}
+{% endif %}
 
-{% if "class" in own_page_types %}
+{# Children defined directly in the package __init__ #}
+{% set visible_children = obj.children | selectattr("display") | list %}
+{% set visible_classes = visible_children | selectattr("type", "equalto", "class") | list %}
+{% set visible_functions = visible_children | selectattr("type", "equalto", "function") | list %}
+
+{% if visible_classes %}
 Classes
 -------
 .. toctree::
    :maxdepth: 1
-   :glob:
    :titlesonly:
 
-   {{ base }}/[A-Z]*
+{% for klass in visible_classes %}
+   {{ klass.include_path }}
+{% endfor %}
 {% endif %}
 
-{% if "function" in own_page_types %}
+{% if visible_functions %}
 Functions
 ---------
 .. toctree::
    :maxdepth: 1
-   :glob:
    :titlesonly:
 
-   {{ base }}/[a-z0-9_]*   {# package-root aliases, if any #}
-{% endif %}
-
-{% if obj.docstring %}
-{{ obj.docstring }}
+{% for func in visible_functions %}
+   {{ func.include_path }}
+{% endfor %}
 {% endif %}

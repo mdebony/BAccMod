@@ -5,37 +5,62 @@
 
 .. py:module:: {{ obj.name }}
 
-{% set base = "/autoapi/" + obj.name.replace(".", "/") %}
+{% if obj.docstring %}
+.. autoapi-nested-parse::
+   {{ obj.docstring|indent(3) }}
+{% endif %}
 
-.. toctree::
-   :maxdepth: 1
-   :glob:
-   :titlesonly:
+{# Children of this module that should be shown #}
+{% set visible_children = obj.children | selectattr("display") | list %}
+{% set visible_classes = visible_children | selectattr("type", "equalto", "class") | list %}
+{% set visible_functions = visible_children | selectattr("type", "equalto", "function") | list %}
+{% set visible_exceptions = visible_children | selectattr("type", "equalto", "exception") | list %}
+{% set visible_attributes = visible_children | selectattr("type", "equalto", "data") | list %}
 
-   {{ base }}/*/index
-
-{% if "class" in own_page_types %}
+{% if visible_classes %}
 Classes
 -------
 .. toctree::
    :maxdepth: 1
-   :glob:
    :titlesonly:
 
-   {{ base }}/[A-Z]*
+{% for klass in visible_classes %}
+   {{ klass.include_path }}
+{% endfor %}
 {% endif %}
 
-{% if "function" in own_page_types %}
+{% if visible_functions %}
 Functions
 ---------
 .. toctree::
    :maxdepth: 1
-   :glob:
    :titlesonly:
 
-   {{ base }}/[a-z0-9_]*   {# matches module-level function pages like log_poisson.rst #}
+{% for func in visible_functions %}
+   {{ func.include_path }}
+{% endfor %}
 {% endif %}
 
-{% if obj.docstring %}
-{{ obj.docstring }}
+{% if visible_exceptions %}
+Exceptions
+----------
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+
+{% for exc in visible_exceptions %}
+   {{ exc.include_path }}
+{% endfor %}
+{% endif %}
+
+{% if visible_attributes %}
+Attributes
+----------
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+
+{% for attr in visible_attributes %}
+   {{ attr.include_path }}
+{% endfor %}
 {% endif %}
