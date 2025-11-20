@@ -37,10 +37,7 @@ jobs:
 
       - name: Build Sphinx documentation (fail on warnings)
         run: |
-          sphinx-build \
-            -b html \
-            "$DOCS_DIR" "$DOCS_DIR/_build/html" \
-            -W --keep-going -T
+          make -C docs clean html SPHINXOPTS="-W --keep-going -T"
           # Flags:
           # -W           = turn warnings into errors (fail the job)
           # --keep-going = try to continue after errors, but still fail in the end
