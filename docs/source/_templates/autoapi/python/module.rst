@@ -52,15 +52,3 @@ Exceptions
    {{ exc.include_path }}
 {% endfor %}
 {% endif %}
-
-{% if visible_attributes %}
-Attributes
-----------
-.. toctree::
-   :maxdepth: 1
-   :titlesonly:
-
-{% for attr in visible_attributes %}
-   {{ attr.include_path }}
-{% endfor %}
-{% endif %}
