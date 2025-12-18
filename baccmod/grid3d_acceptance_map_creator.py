@@ -67,7 +67,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
             Seeds of the parameters of the function to fit. Normalisation parameter is ignored if given.
         fit_bounds: dict, can optionally be None if using a built-in function
             Bounds of the parameters of the function to fit. Normalisation parameter is ignored if given.
-        ** kwargs
+        **kwargs
             Additional arguments for controlling background creation, see documentation of BaseAcceptanceMapCreator for more details
         """
 

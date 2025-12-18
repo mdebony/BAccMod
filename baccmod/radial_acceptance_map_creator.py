@@ -46,7 +46,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
-        ** kwargs
+        **kwargs
             Additional arguments for controlling background creation, see documentation of BaseAcceptanceMapCreator for more details
         """
 
