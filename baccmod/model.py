@@ -11,7 +11,6 @@
 """
 Define the background model functions for fits and associated seeds and bounds.
 """
-import numpy as np
 
 __all__ = ['BilinearGradient']
 

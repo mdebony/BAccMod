@@ -13,10 +13,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List
 
-import astropy.units as u
 import numpy as np
 from astropy.modeling import Model
-from gammapy.maps import MapAxis
 
 from .fitting import poisson_fitter
 from .grid3d_acceptance_map_creator import Grid3DAcceptanceMapCreator
@@ -37,97 +35,31 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
 
     def __init__(
         self,
-        energy_axis: MapAxis,
-        offset_axis: MapAxis,
-        oversample_map: int = 10,
-        exclude_regions=None,
-        cos_zenith_binning_method: str = 'min_livetime',
-        cos_zenith_binning_parameter_value: int = 3600,
-        initial_cos_zenith_binning: float = 0.01,
-        max_angular_separation_wobble: u.Quantity = 0.4 * u.deg,
-        zenith_binning_run_splitting: bool = False,
-        max_fraction_pixel_rotation_fov: float = 0.5,
-        time_resolution: u.Quantity = 0.1 * u.s,
-        use_mini_irf_computation: bool = False,
-        mini_irf_time_resolution: u.Quantity = 1. * u.min,
-        interpolation_type: str = 'linear',
-        activate_interpolation_cleaning: bool = False,
-        interpolation_cleaning_energy_relative_threshold: float = 1e-4,
-        interpolation_cleaning_spatial_relative_threshold: float = 1e-2,
-        list_name_normalisation_parameter: List[str] = None,
+        list_name_normalisation_parameter: List[str] = ['amplitude'],
+        **kwargs
     ) -> None:
         """
         Abstract base class for fitting.  All the “core‐Poisson‐fit” logic lives here.
 
         Parameters
         ----------
-        energy_axis : MapAxis
-            The energy axis for the acceptance model
-        offset_axis : MapAxis
-            The offset axis for the acceptance model
-        oversample_map : int, optional
-            Oversample in number of pixel of the spatial axis used for the calculation
-        exclude_regions : list of regions.SkyRegion, optional
-            Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
-        cos_zenith_binning_method : str, optional
-            The method used for cos zenith binning: 'min_livetime','min_n_observation'
-        cos_zenith_binning_parameter_value : int, optional
-            Minimum livetime (in seconds) or number of observations per zenith bins
-        initial_cos_zenith_binning : float, optional
-            Initial bin size for cos zenith binning
-        max_angular_separation_wobble : u.Quantity, optional
-            The maximum angular separation between identified wobbles, in degrees
-        zenith_binning_run_splitting : float, optional
-            If true, will split each run to match zenith binning for the base model computation
-            Could be computationally expensive, especially at high zenith with a high resolution zenith binning
-        max_fraction_pixel_rotation_fov : bool, optional
-            For camera frame transformation the maximum size relative to a pixel a rotation is allowed
-        time_resolution : astropy.units.Quantity, optional
-            Time resolution to use for the computation of the rotation of the FoV and cut as function of the zenith bins
-        use_mini_irf_computation : bool, optional
-            If true, in case the case of zenith interpolation or binning, each run will be divided in small subrun (the slicing is based on time).
-            A model will be computed for each sub run before averaging them to obtain the final model for the run.
-            Should improve the accuracy of the model, especially at high zenith angle.
-        mini_irf_time_resolution : astropy.units.Quantity, optional
-            Time resolution to use for mini irf used for computation of the final background model
-        interpolation_type: str, optional
-            Select the type of interpolation to be used, could be either "log" or "linear", log tend to provided better results be could more easily create artefact that will cause issue
-        activate_interpolation_cleaning: bool, optional
-            If true, will activate the cleaning step after interpolation, it should help to eliminate artefact caused by interpolation
-        interpolation_cleaning_energy_relative_threshold: float, optional
-            To be considered value, the bin in energy need at least one adjacent bin with a relative difference within this range
-        interpolation_cleaning_spatial_relative_threshold: float, optional
-            To be considered value, the bin in space need at least one adjacent bin with a relative difference within this range
         list_name_normalisation_parameter: list of string, optional
-            All the parameters contained in this list in the model will be automatically normalised based on overall counts at the start of the fit, normalisation correction is done with hypothesis of addition of components, therefore they will be all corrected by the same factor
+            All the parameters contained in this list in the model will be automatically normalised based on overall
+            counts at the start of the fit, normalisation correction is done with hypothesis of addition of components,
+            therefore they will be all corrected by the same factor
+        **kwargs
+            Additional arguments for controlling background creation,
+            see documentation of BaseAcceptanceMapCreator and Grid3DAcceptanceMapCreator for more details
         """
 
         # Call the “stack”‐only constructor in Grid3D, to set up geometry, offset axes, etc.
-        super().__init__(
-            energy_axis=energy_axis,
-            offset_axis=offset_axis,
-            oversample_map=oversample_map,
-            exclude_regions=exclude_regions,
-            cos_zenith_binning_method=cos_zenith_binning_method,
-            cos_zenith_binning_parameter_value=cos_zenith_binning_parameter_value,
-            initial_cos_zenith_binning=initial_cos_zenith_binning,
-            max_angular_separation_wobble=max_angular_separation_wobble,
-            zenith_binning_run_splitting=zenith_binning_run_splitting,
-            max_fraction_pixel_rotation_fov=max_fraction_pixel_rotation_fov,
-            time_resolution=time_resolution,
-            use_mini_irf_computation=use_mini_irf_computation,
-            mini_irf_time_resolution=mini_irf_time_resolution,
-            interpolation_type=interpolation_type,
-            activate_interpolation_cleaning=activate_interpolation_cleaning,
-            interpolation_cleaning_energy_relative_threshold=interpolation_cleaning_energy_relative_threshold,
-            interpolation_cleaning_spatial_relative_threshold=interpolation_cleaning_spatial_relative_threshold,
-        )
+        super().__init__(**kwargs)
 
         self.sq_rel_residuals = {"mean": [], "std": []}
         self.list_name_normalisation_parameter = list_name_normalisation_parameter
 
     @abstractmethod
-    def create_acceptance_map(self, observations):
+    def create_model(self, observations):
         """
         Subclasses must implement: run self._create_base_computation_map(), then
         call self.fit_background() for each slice (energy, spatial or all depending on the implementation), and finally pack into Background3D.
@@ -192,20 +124,25 @@ class BaseFitAcceptanceMapCreator(Grid3DAcceptanceMapCreator, ABC):
                     logger.warning(f'{p} is not a parameters of the model and therefore normalisation was not adjusted for this parameter')
 
         # Fit the model
-        best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
+        if total_counts>0:
+            best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction, mask=mask)
+            # Collect results & (optionally) track residuals
+            if logger.getEffectiveLevel() <= logging.INFO:
+                fitted_model = best_model(*coords) * exp_correction
+                fitted_model[exp_map == 0] = 1.0
+                rel_resid = 100 * (count_map - fitted_model) / fitted_model
+                sq_rel_resid = (count_map - fitted_model) / np.sqrt(fitted_model)
+                self.sq_rel_residuals["mean"].append(np.mean(sq_rel_resid))
+                self.sq_rel_residuals["std"].append(np.std(sq_rel_resid))
+                param_dict = dict(zip(best_model.param_names, best_model.parameters))
+                logger.info(f"Fit results ({type(best_model).__name__}): {param_dict}")
+                logger.debug(
+                    f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
+                )
+        else:
+            best_model = model_init
+            self.sq_rel_residuals["mean"].append(np.nan)
+            self.sq_rel_residuals["std"].append(np.nan)
 
-        # Collect results & (optionally) track residuals
-        if logger.getEffectiveLevel() <= logging.INFO:
-            fitted_model = best_model(*coords) * exp_correction
-            fitted_model[exp_map == 0] = 1.0
-            rel_resid = 100 * (count_map - fitted_model) / fitted_model
-            sq_rel_resid = (count_map - fitted_model) / np.sqrt(fitted_model)
-            self.sq_rel_residuals["mean"].append(np.mean(sq_rel_resid))
-            self.sq_rel_residuals["std"].append(np.std(sq_rel_resid))
-            param_dict = dict(zip(best_model.param_names, best_model.parameters))
-            logger.info(f"Fit results ({type(best_model).__name__}): {param_dict}")
-            logger.debug(
-                f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
-            )
 
         return best_model(*coords)

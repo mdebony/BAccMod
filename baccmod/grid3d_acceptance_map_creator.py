@@ -12,7 +12,6 @@ import logging
 from typing import Tuple, List, Optional
 
 import astropy.units as u
-import gammapy
 import numpy as np
 from astropy.coordinates import AltAz
 from astropy.coordinates.erfa_astrom import erfa_astrom, ErfaAstromInterpolator
@@ -117,7 +116,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         corrected_counts = count_background * (exp_map_background_total_downsample.data /
                                                exp_map_background_downsample.data)
         solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
-        data_background = corrected_counts / solid_angle[np.newaxis, :, :] / self.energy_axis.bin_width[:, np.newaxis, np.newaxis] / livetime
+        data_background = (corrected_counts /
+                           solid_angle[np.newaxis, :, :] /
+                           energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /
+                           livetime)
 
         data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
 

@@ -860,7 +860,7 @@ class BaseAcceptanceMapCreator(ABC):
         logger.info(f"cos zenith bin edges: {list(np.round(cos_zenith_bin, 2))}")
         logger.info(f"cos zenith bin centers: {list(np.round(bin_center, 2))}")
         logger.info(f"observation per bin: {list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin)[0])}")
-        logger.info(f"livetime per bin [s]: " +
+        logger.info("livetime per bin [s]: " +
                     f"{list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin, weights=livetime_observations)[0].astype(int))}")
         if per_wobble:
             wobble_observations_bool_arr = [(np.array(wobble_observations.tolist()) == wobble) for wobble in

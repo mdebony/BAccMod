@@ -1,6 +1,5 @@
 import logging
 import os
-import logging
 
 import astropy.units as u
 import numpy as np
@@ -89,7 +88,7 @@ class TestIntegrationClass:
                                                    exclude_regions=self.exclude_region_PKS_2155,
                                                    model_to_fit=model,
                                                    list_name_normalisation_parameter=['amplitude',])
-        background_model = bkg_maker.create_acceptance_map(observations=self.obs_collection_pks_2155)
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
 
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
@@ -129,12 +128,11 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation,
-                                               offset_axis=self.offset_axis,
-                                               oversample_map=5,
-                                               exclude_regions=self.exclude_region_PKS_2155,
-                                               method='fit')
+        bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                                   energy_axis_computation=self.energy_axis_computation,
+                                                   offset_axis=self.offset_axis,
+                                                   oversample_map=5,
+                                                   exclude_regions=self.exclude_region_PKS_2155)
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_irregular_energy.fits')
@@ -176,14 +174,13 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_dynamic_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation_dense,
-                                               offset_axis=self.offset_axis,
-                                               dynamic_energy_axis=True,
-                                               dynamic_energy_axis_target_statistics=100,
-                                               oversample_map=5,
-                                               exclude_regions=self.exclude_region_PKS_2155,
-                                               method='fit')
+        bkg_maker = SpatialFitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                                   energy_axis_computation=self.energy_axis_computation_dense,
+                                                   offset_axis=self.offset_axis,
+                                                   dynamic_energy_axis=True,
+                                                   dynamic_energy_axis_target_statistics=100,
+                                                   oversample_map=5,
+                                                   exclude_regions=self.exclude_region_PKS_2155)
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_dynamic_irregular_energy.fits')
