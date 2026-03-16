@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 class BaseAcceptanceMapCreator(ABC):
 
+    erfa_astrom_interpolation_interval = 1000.*u.s
+
     def __init__(self,
                  energy_axis: MapAxis,
                  max_offset: u.Quantity,
@@ -243,8 +245,7 @@ class BaseAcceptanceMapCreator(ABC):
         return WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
                               binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis])
 
-    @staticmethod
-    def _get_events_in_camera_frame(obs: Observation) -> SkyCoord:
+    def _get_events_in_camera_frame(self, obs: Observation) -> SkyCoord:
         """
         Transform events and pointing of an obs from a sky frame to camera frame
 
@@ -269,18 +270,19 @@ class BaseAcceptanceMapCreator(ABC):
             return SkyCoord(lon=[]*u.deg, lat=[]*u.deg, frame=camera_frame)
 
         else:
-            # Transform to altaz frame
-            altaz_frame = AltAz(obstime=obs.events.time,
-                                location=obs.observatory_earth_location)
-            events_altaz = obs.events.radec.transform_to(altaz_frame)
-            pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
+            with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_astrom_interpolation_interval)):
+                # Transform to altaz frame
+                altaz_frame = AltAz(obstime=obs.events.time,
+                                    location=obs.observatory_earth_location)
+                events_altaz = obs.events.radec.transform_to(altaz_frame)
+                pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
 
-            # Rotation to transform to camera frame
-            camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
-                                                       az=pointing_altaz.az,
-                                                       obstime=obs.events.time,
-                                                       location=obs.observatory_earth_location),
-                                          rotation=[0., ] * len(obs.events.time) * u.deg)
+                # Rotation to transform to camera frame
+                camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
+                                                           az=pointing_altaz.az,
+                                                           obstime=obs.events.time,
+                                                           location=obs.observatory_earth_location),
+                                              rotation=[0., ] * len(obs.events.time) * u.deg)
 
             return events_altaz.transform_to(camera_frame)
 
@@ -554,7 +556,7 @@ class BaseAcceptanceMapCreator(ABC):
         time_axis = np.linspace(obs.tstart, obs.tstop, num=n_bin)
 
         # Compute the zenith for each evaluation time
-        with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
+        with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_astrom_interpolation_interval)):
             altaz_coordinates = obs.get_pointing_altaz(time_axis)
             zenith_values = altaz_coordinates.zen
             if np.any(zenith_values < np.min(edge_zenith_bin)) or np.any(zenith_values > np.max(edge_zenith_bin)):

@@ -353,7 +353,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         exp_map_background_total = WcsNDMap(geom=geom, unit=u.s)
         livetime = 0. * u.s
 
-        with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
+        with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_astrom_interpolation_interval)):
             for raw_obs in observations:
                 # Copy the observation to prevent modifying the original
                 obs = raw_obs.copy(True)
