@@ -5,12 +5,15 @@ import astropy.units as u
 import numpy as np
 from astropy.coordinates import EarthLocation, SkyCoord
 from astropy.modeling.functional_models import Gaussian2D
+from astropy.modeling.powerlaws import PowerLaw1D
 from gammapy.data import DataStore
 from gammapy.irf import Background3D, Background2D
 from gammapy.maps import MapAxis
 from regions import CircleSkyRegion
 
 from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator, FitAcceptanceMapCreator
+
+from baccmod.model import CustomModels, powerlawenergy_gaussian2dspatial
 
 import gammapy
 gammapy_version = gammapy.__version__
@@ -73,6 +76,40 @@ class TestIntegrationClass:
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
 
+    def test_CustomModels(self):
+        pwl_model = PowerLaw1D()
+        def powerlaw(e, amplitude=1.0, x_0 = 1.0, alpha=1.0):
+            return PowerLaw1D.evaluate(e, amplitude, x_0, alpha)
+        pwl_model_custom = CustomModels(powerlaw)
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=pwl_model,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=pwl_model_custom,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model_custom = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+
+        assert np.all(background_model.data == background_model_custom.data)
+
+    def test_integration_energy_fit(self):
+        model = PowerLaw1D()
+        model.amplitude.bounds = [0.5, None]
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
     def test_integration_spatial_fit(self):
         model = Gaussian2D(x_mean=0, y_mean=0, x_stddev=1, y_stddev=1, theta=0)
         model.amplitude.bounds = [0.5, None]
@@ -99,6 +136,24 @@ class TestIntegrationClass:
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance_fit_method))
+
+        def test_integration_3D_fit(self):
+            model = powerlawenergy_gaussian2dspatial()
+            model.amplitude.bounds = [0.5, None]
+            model.x_mean.bounds = [-1, 1]
+            model.y_mean.bounds = [-1, 1]
+            model.x_stddev.bounds = [0.01, 5]
+            model.y_stddev.bounds = [0.01, 5]
+            model.y_stddev.tied = lambda model: model.x_stddev.value
+            model.theta.fixed = True
+            bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                                offset_axis=self.offset_axis,
+                                                oversample_map=5,
+                                                exclude_regions=self.exclude_region_PKS_2155,
+                                                model_to_fit=model,
+                                                list_name_normalisation_parameter=['amplitude',])
+            background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+            assert type(background_model) is Background3D
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,

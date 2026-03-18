@@ -70,7 +70,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         self.sq_rel_residuals = {"mean": [], "std": []}
         self.model_to_fit = model_to_fit
         if model_to_fit.n_inputs !=2:  #TODO remove once 1D and 3D models are tested
-            logger.warning('Only 2D models, fitted per energy bin, were thoughrouly tested.')
+            logger.warning('Only 2D models, fitted per energy bin, were thoroughly tested.')
         self.list_name_normalisation_parameter = list_name_normalisation_parameter
         self.maxiter = maxiter
 
@@ -89,9 +89,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         """
 
         # 1) gather fine-binned counts + exposures + livetime
-        count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation  = self._create_base_computation_map(
-            observations
-        )
+        (count_background,
+         exp_map_background,
+         exp_map_background_total,
+         livetime, energy_axis_computation) = self._create_base_computation_map(observations)
 
         # 2) downsample exposures
         exp_ds = exp_map_background.downsample(self.oversample_map, preserve_counts=True)
@@ -105,11 +106,11 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         # coordinates system for the fit, based on the model dimension
         # order should be (energy, lon, lat) in the model for the fit to be correct
         coordinates = []
+        centers = self.offset_axis.center.to_value('deg')
+        centers = np.concatenate((-np.flip(centers), centers), axis=None)
         if self.model_to_fit.n_inputs != 2:
             coordinates.append(energy_axis_computation.center.to_value('TeV'))
         if self.model_to_fit.n_inputs > 1:
-            centers = self.offset_axis.center.to_value('deg')
-            centers = np.concatenate((-np.flip(centers), centers), axis=None)
             coordinates.append(centers)
             coordinates.append(centers)
         coords = np.meshgrid(*coordinates, indexing='ij')
@@ -129,8 +130,8 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         elif self.model_to_fit.n_inputs == 2:
             for e in range(count_background.shape[0]):
                 logger.info(
-                    f"Fitting background, energy bin [{energy_axis_computation.edges[e]:.2f}, "
-                    f"{energy_axis_computation.edges[e + 1]:.2f}]"
+                    "Fitting background, energy bin [{edge_l:.2f}, {edge_h:.2f}]",
+                    edge_l=energy_axis_computation.edges[e], edge_h=energy_axis_computation.edges[e + 1]
                 )
                 corrected_counts[e] = self._fit_background(
                     self.model_to_fit,
@@ -143,7 +144,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             for x in range(count_background.shape[1]):
                 for y in range(count_background.shape[2]):
                     logger.info(
-                        f"Fitting background, spatial bin {centers[x]:.2f}, {centers[y]:.2f}"
+                        "Fitting background, spatial bin {c_x:.2f}, {c_y:.2f}", c_x=centers[x], c_y=centers[y]
                     )
                     corrected_counts[:,x,y] = self._fit_background(
                         self.model_to_fit,
@@ -156,8 +157,8 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             raise RuntimeError(f"The provided model dimension is incorrect : {self.model_to_fit.n_inputs}")
 
         logger.info(
-            "Average event sqrt‐residuals per energy: "
-            f"{np.round(self.sq_rel_residuals['mean'], 2)}, std = {np.round(self.sq_rel_residuals['std'], 2)}"
+            "Average event sqrt‐residuals per energy: {mean}, std = {std}",
+            mean=np.round(self.sq_rel_residuals['mean'], 2), std=np.round(self.sq_rel_residuals['std'], 2)
         )
 
         # 4) build final offset axes (matching Grid3DAcceptanceMapCreator)
@@ -243,8 +244,8 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                 if p in indep_params:
                     setattr(model_init, p, getattr(model_init, p)*correction_norm)
                 else:
-                    logger.warning(f'{p} is not a parameters of the model and therefore normalisation was not adjusted'
-                                    'for this parameter')
+                    logger.warning('{p} is not a parameters of the model and therefore normalisation was not adjusted'
+                                   'for this parameter', p=p)
 
         # Fit the model
         best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction,
@@ -258,9 +259,9 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             self.sq_rel_residuals["mean"].append(np.mean(sq_rel_resid))
             self.sq_rel_residuals["std"].append(np.std(sq_rel_resid))
             param_dict = dict(zip(best_model.param_names, best_model.parameters))
-            logger.log(MOREINFO, f"Fit results ({type(best_model).__name__}): {param_dict}")
+            logger.log(MOREINFO, "Fit results ({name}): {params}", name=type(best_model).__name__, params=param_dict)
             logger.debug(
-                f"  Avg rel residual: {np.mean(rel_resid):.1f}%,  Std = {np.std(rel_resid):.2f}%\n"
+                "Avg rel residual: {mean:.1f},  Std = {std:.2f}\n", mean=np.mean(rel_resid), std=np.std(rel_resid)
             )
 
         return best_model(*coords)
