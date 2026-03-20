@@ -10,11 +10,16 @@
 # ---------------------------------------------------------------------
 
 __all__ = ['CustomModels',
+           'powerlaw_inv_super_exp_cutoff_exp_cutoff',
            'bilinear_gradient',
            'gaussian2d_bilinear_gradient',
            'powerlawenergy_gaussian2dspatial',
+           'plcutoffsenergy_gaussgradspatial',
+           'PowerLawCutOffsEnergy',
            'Gaussian2DxLinearGradientsSpatial',
-           'PowerLawEnergyxGaussian2DSpatial']
+           'PowerLawEnergyxGaussian2DSpatial',
+           'PLCutOffsEnergyxGaussGradSpatial']
+
 import logging
 from astropy.modeling.core import ModelDefinitionError, _custom_model_inputs
 from astropy.modeling.functional_models import Gaussian2D
@@ -22,6 +27,7 @@ from astropy.modeling.powerlaws import PowerLaw1D
 from astropy.modeling import FittableModel
 from astropy.modeling.parameters import Parameter
 from astropy.utils import find_current_module
+from numpy import exp
 logger = logging.getLogger(__name__)
 
 
@@ -69,10 +75,10 @@ class CustomModels(FittableModel):
 
         self.param_names = list(params.keys())
         mod = find_current_module(2)
+        modname = "__main__"
         if mod:
             modname = mod.__name__
-        else:
-            modname = "__main__"
+
         members = {
             "_name":fnc.__name__,
             "__module__": str(modname),
@@ -89,13 +95,21 @@ class CustomModels(FittableModel):
         self._initialize_slices()
         self._initialize_unit_support()
         self._separable = len(inputs) == 1
-        logger.info(f"Initialised custom model with function {fnc.__name__} and {self.n_inputs:d} inputs")
+        logger.info("Initialised custom model with function %s and %d inputs",
+                    fnc.__name__, self.n_inputs)
 
     def evaluate(self, *args, **kwargs):
         pass
 
 
 # Below are some models function and classes created using CustomModels.
+
+def powerlaw_inv_super_exp_cutoff_exp_cutoff(e, amplitude=1.0, index=2.0, eref=1.0, b=2, ecl=0.1, ech=100.0):
+    """ Power law model with low energy super exponential cut-off and a high energy exponential cut-off. """
+    pl = (e/eref)**-index
+    low_super_exp_cutoff = exp(-(ecl/e)**b)
+    high_exp_cutoff = exp(-(e/ech))
+    return amplitude * pl * low_super_exp_cutoff * high_exp_cutoff
 
 def bilinear_gradient(x, y, x_gradient=0, y_gradient=0):
     """ Function used to create a linear gradient defined along 2 coordinates. """
@@ -115,13 +129,33 @@ def powerlawenergy_gaussian2dspatial(e, x, y, amplitude=1.0, x_0=1, alpha=2.0, x
     return amplitude * PowerLaw1D.evaluate(e, 1, x_0, alpha) * Gaussian2D.evaluate(x, y, 1, x_mean, y_mean, x_stddev,
                                                                                    y_stddev, theta)
 
+def plcutoffsenergy_gaussgradspatial(e, x, y, amplitude=1.0, index=2.0, eref=1.0, b=2, ecl=0.1, ech=100.0,
+                                     x_mean=0.0, y_mean=0.0, x_stddev=1.0, y_stddev=1.0, theta=0.0,
+                                     x_gradient=0, y_gradient=0):
+    """ Function convoluting a powerlaw with cut-offs model along one dimension (assumed energy) with a
+        two dimensional Gaussian with gradient along two different dimensions (assumed spatial) """
+    return  (powerlaw_inv_super_exp_cutoff_exp_cutoff(e, amplitude, index, eref, b, ecl, ech) *
+             gaussian2d_bilinear_gradient(x, y, 1.0, x_mean, y_mean, x_stddev, y_stddev, theta, x_gradient, y_gradient))
+
+class PowerLawCutOffsEnergy(CustomModels):
+    """ 1D FittableModel : powerlaw energy distribution with a super exponential cut-off at low energy and an
+        exponential cut-off at high energy. """
+    def __init__(self):
+        super().__init__(powerlaw_inv_super_exp_cutoff_exp_cutoff)
+
 class Gaussian2DxLinearGradientsSpatial(CustomModels):
-    """ 2D FIttableModel using a two dimensional spatial distribution convoluting a two dimensionnal Gaussian with a
-        linear gradient"""
+    """ 2D FittableModel : two dimensional spatial distribution convoluting a two dimensionnal Gaussian with a
+        linear gradient. """
     def __init__(self):
         super().__init__(gaussian2d_bilinear_gradient)
 
 class PowerLawEnergyxGaussian2DSpatial(CustomModels):
-    """ 3D FittableModel using a powerlaw enegy distribution and two dimensional Gaussian spatial distribution."""
+    """ 3D FittableModel : powerlaw enegy distribution and two dimensional Gaussian spatial distribution. """
     def __init__(self):
         super().__init__(powerlawenergy_gaussian2dspatial)
+
+class PLCutOffsEnergyxGaussGradSpatial(CustomModels):
+    """ 3D FittableModel : powerlaw energy distribution with a super exponential cut-off at low energy and an
+        exponential cut-off at high energy; two dimensionnal Gaussian with a linear gradient spatial distribution. """
+    def __init__(self):
+        super().__init__(plcutoffsenergy_gaussgradspatial)

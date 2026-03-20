@@ -1,5 +1,6 @@
 import logging
 import os
+import pytest
 
 import astropy.units as u
 import numpy as np
@@ -13,7 +14,7 @@ from regions import CircleSkyRegion
 
 from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator, FitAcceptanceMapCreator
 
-from baccmod.model import CustomModels, powerlawenergy_gaussian2dspatial
+from baccmod.model import CustomModels, PowerLawEnergyxGaussian2DSpatial
 
 import gammapy
 gammapy_version = gammapy.__version__
@@ -23,7 +24,8 @@ gammapy_ver_patch = 0
 if len(gammapy_version.split('.')) > 2:
     gammapy_ver_patch = int(gammapy_version.split('.')[2])
 
-
+# Activate all logging messages
+logging.getLogger('baccmod').setLevel('DEBUG')
 
 class TestIntegrationClass:
     datastore = DataStore.from_dir(os.path.join(os.environ['GAMMAPY_DATA'], 'hess-dl3-dr1'))
@@ -49,6 +51,9 @@ class TestIntegrationClass:
     energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
     energy_axis_computation_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
+
+    fast_energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=2, name='energy')
+    fast_offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=2, name='offset')
 
     absolute_tolerance = 1e-5
     relative_tolerance = 1e-3
@@ -98,6 +103,21 @@ class TestIntegrationClass:
 
         assert np.all(background_model.data == background_model_custom.data)
 
+    def test_integration_error_fit(self):
+        def four_input_fnc(x1, x2, x3, x4):
+            return x1 + x2 + x3 + x4
+        model = CustomModels(four_input_fnc)
+
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.fast_energy_axis,
+                                            offset_axis=self.fast_offset_axis,
+                                            oversample_map=1,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            list_name_normalisation_parameter=[])
+        with pytest.raises(RuntimeError) as err:
+            bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert str(err.value)[:43] == "The provided model dimension is incorrect :"
+
     def test_integration_energy_fit(self):
         model = PowerLaw1D()
         model.amplitude.bounds = [0.5, None]
@@ -137,23 +157,24 @@ class TestIntegrationClass:
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance_fit_method))
 
-        def test_integration_3D_fit(self):
-            model = powerlawenergy_gaussian2dspatial()
-            model.amplitude.bounds = [0.5, None]
-            model.x_mean.bounds = [-1, 1]
-            model.y_mean.bounds = [-1, 1]
-            model.x_stddev.bounds = [0.01, 5]
-            model.y_stddev.bounds = [0.01, 5]
-            model.y_stddev.tied = lambda model: model.x_stddev.value
-            model.theta.fixed = True
-            bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                                offset_axis=self.offset_axis,
-                                                oversample_map=5,
-                                                exclude_regions=self.exclude_region_PKS_2155,
-                                                model_to_fit=model,
-                                                list_name_normalisation_parameter=['amplitude',])
-            background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
-            assert type(background_model) is Background3D
+    def test_integration_3D_fit(self):
+        model = PowerLawEnergyxGaussian2DSpatial()
+        model.amplitude.bounds = [0.5, None]
+        model.x_mean.bounds = [-1, 1]
+        model.y_mean.bounds = [-1, 1]
+        model.x_stddev.bounds = [0.01, 5]
+        model.y_stddev.bounds = [0.01, 5]
+        model.y_stddev.tied = lambda model: model.x_stddev.value
+        model.theta.fixed = True
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            # test having one bad paramenter in the list to normalise
+                                            list_name_normalisation_parameter=['amplitude', 'bad_param'])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
