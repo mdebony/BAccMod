@@ -1,0 +1,37 @@
+name: Build Docs
+
+on:
+  push:
+    branches: main
+  pull_request:
+
+jobs:
+  build:
+    name: Build Sphinx documentation
+    runs-on: ubuntu-latest
+
+    env:
+      # Adjust if your docs are in a different directory
+      DOCS_DIR: docs
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package with docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+
+      - name: Build Sphinx documentation (fail on warnings)
+        run: |
+          make -C docs clean html SPHINXOPTS="-W --keep-going -T"
+          # Flags:
+          # -W           = turn warnings into errors (fail the job)
+          # --keep-going = try to continue after errors, but still fail in the end
+          # -T           = show full traceback for easier debugging
