@@ -6,10 +6,24 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import os
+import sys
+from importlib.metadata import PackageNotFoundError, version as package_version
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 project = 'BAccMod'
 copyright = '2025, Mathieu de Bony de Lavergne, Gabriel Emery, Marie-Sophie Carrasco'
 author = 'Mathieu de Bony de Lavergne, Gabriel Emery, Marie-Sophie Carrasco'
-release = '0.4.0_dev'
+
+try:
+    release = package_version(project)
+except PackageNotFoundError:
+    release = os.environ.get("READTHEDOCS_VERSION_NAME", "dev")
+
+version = release
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -45,12 +59,6 @@ napoleon_use_admonition_for_examples = False
 napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
-
-
-# If your package is not on sys.path by default, insert it. Example assuming docs/ is sibling to package:
-import os
-import sys
-sys.path.insert(0, os.path.abspath(".."))  # adjust if needed
 
 templates_path = ['_templates']
 exclude_patterns = []
