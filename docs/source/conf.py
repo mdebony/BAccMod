@@ -28,6 +28,8 @@ autoapi_member_order = "bysource"
 autoapi_own_page_level = "function"
 autoapi_template_dir = "_templates/autoapi"
 
+modindex_common_prefix = ["baccmod."]
+
 nitpick_ignore = [
     ("py:class", "BackgroundCollectionZenith"),
 ]
@@ -58,5 +60,12 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = "sphinx_rtd_theme"
+html_theme_options = {
+    "collapse_navigation": False,
+    "navigation_depth": 4,
+    "includehidden": True,
+    "titles_only": False,
+}
 html_static_path = ['_static']
+html_css_files = ["custom.css"]

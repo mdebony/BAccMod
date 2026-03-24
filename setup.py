@@ -23,11 +23,17 @@ setup(
         'astropy>=4.0,<8.0',
         'regions>=0.7,<0.11'
     ],
-    extra_requires=[
-        'pytest',
-        'sphinx',
-        'sphinx-autoapi'
-    ],
+    extras_require={
+        'dev': [
+            'pytest',
+        ],
+        'docs': [
+            'sphinx',
+            'sphinx-autoapi',
+            'sphinx-rtd-theme',
+            'sphinxcontrib-napoleon',
+        ],
+    },
     package_data={
             'baccmod': [
                 'resources/*',

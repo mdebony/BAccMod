@@ -23,17 +23,10 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
+      - name: Install package with docs dependencies
         run: |
           python -m pip install --upgrade pip
-          # If you have extras for docs, prefer this:
-          # pip install ".[docs]"
-          pip install sphinx sphinx-autoapi
-
-      - name: Install package in editable mode
-        run: |
-          # So autodoc can import your package
-          pip install -e .
+          pip install -e ".[docs]"
 
       - name: Build Sphinx documentation (fail on warnings)
         run: |

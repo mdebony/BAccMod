@@ -10,13 +10,7 @@ BAccMod documentation
    :maxdepth: 2
    :caption: Contents:
 
+   self
    api
-
-Indices and tables
-==================
-
-* :ref:`modindex`
-* :ref:`genindex`
-* :ref:`search`
-
+   reference
 
