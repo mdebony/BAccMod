@@ -180,7 +180,7 @@ class BaseAcceptanceMapCreator(ABC):
         self.mini_irf_time_resolution = mini_irf_time_resolution
 
     @abstractmethod
-    def create_model(self, observations: Observations) -> BackgroundIRF:
+    def create_model(self, observations: Observations, add_intermediary_output: bool = False) -> BackgroundIRF:
         """
         Abstract method to calculate an acceptance map from a list of observations.
 
@@ -190,6 +190,8 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         observations : gammapy.data.observations.Observations
             The collection of observations used to create the acceptance map.
+        add_intermediary_output: bool
+            Add for each model a baccmod field in meta with all the intermediary state of the computation
 
         Returns
         -------
@@ -732,7 +734,8 @@ class BaseAcceptanceMapCreator(ABC):
         return observations_dict, split_obs
 
     def _create_model_cos_zenith_binned(self,
-                                        observations: Observations
+                                        observations: Observations,
+                                        add_intermediary_output: bool = False,
                                         ) -> BackgroundCollectionZenith:
         """
         Calculate a model for each cos zenith bin
@@ -741,6 +744,8 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         observations : gammapy.data.observations.Observations
             The collection of observations used to make the background model
+        add_intermediary_output: bool
+            Add for each model a baccmod field in meta with all the intermediary state of the computation
 
         Returns
         -------
@@ -877,7 +882,7 @@ class BaseAcceptanceMapCreator(ABC):
         binned_model = []
         for i, binned_obs in enumerate(binned_observations):
             logger.info(f"Creating model for the bin at cos zenith = {np.round(bin_center[i], 2)}°")
-            binned_model.append(self.create_model(binned_obs))
+            binned_model.append(self.create_model(binned_obs, add_intermediary_output))
 
         dict_binned_model = {}
         for i in range(len(binned_model)):
@@ -894,7 +899,8 @@ class BaseAcceptanceMapCreator(ABC):
     def _create_acceptance_model(self,
                                  off_observations: dict[str, Observations],
                                  zenith_binning: bool = False,
-                                 zenith_interpolation: bool = False
+                                 zenith_interpolation: bool = False,
+                                 add_intermediary_output: bool = False,
                                  ) -> Union[BackgroundIRF,BackgroundCollectionZenith]:
         """
         A function to create a combined background model for observations previously separated in subsets.
@@ -903,6 +909,8 @@ class BaseAcceptanceMapCreator(ABC):
         off_observations: gammapy.data.observations.Observations
         zenith_binning: bool
         zenith_interpolation: bool
+        add_intermediary_output: bool
+            Add for each model a baccmod field in meta with all the intermediary state of the computation
 
         Returns
         -------
@@ -911,9 +919,9 @@ class BaseAcceptanceMapCreator(ABC):
         models={}
         for key in off_observations.keys():
             if zenith_interpolation or zenith_binning:
-                models[key] = self._create_model_cos_zenith_binned(observations=off_observations[key])
+                models[key] = self._create_model_cos_zenith_binned(observations=off_observations[key], add_intermediary_output=add_intermediary_output)
             else:
-                models[key] = self.create_model(observations=off_observations[key])
+                models[key] = self.create_model(observations=off_observations[key], add_intermediary_output=add_intermediary_output)
         if self.azimuth_east_west_splitting:
             model=BackgroundCollectionZenithSplitAzimuth(bkg_east=models['east'], bkg_west=models['west'],
                                                          interpolation_type=self.interpolation_type,
@@ -1258,7 +1266,8 @@ class BaseAcceptanceMapCreator(ABC):
 
     def create_acceptance_model(self,
                                 off_observations: Observations,
-                                zenith_binning: bool = False
+                                zenith_binning: bool = False,
+                                add_intermediary_output: bool = False,
                                 ) -> Union[BackgroundIRF,BackgroundCollectionZenith]:
         """
         A high level function to create a background model from observations.
@@ -1266,6 +1275,8 @@ class BaseAcceptanceMapCreator(ABC):
         ----------
         off_observations: gammapy.data.observations.Observations
         zenith_binning: bool
+        add_intermediary_output: bool
+            Add for each model a baccmod field in meta with all the intermediary state of the computation
 
         Returns
         -------
@@ -1273,7 +1284,9 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         off_observations_sets, _ = self._cluster_observations(off_observations)
-        return self._create_acceptance_model(off_observations_sets, zenith_binning)
+        return self._create_acceptance_model(off_observations_sets,
+                                             zenith_binning,
+                                             add_intermediary_output=add_intermediary_output)
 
 
     def create_acceptance_map_per_observation(self,
@@ -1338,3 +1351,43 @@ class BaseAcceptanceMapCreator(ABC):
             acceptance_map = self._normalise_model_per_run(observations, acceptance_map)
 
         return acceptance_map
+
+    @staticmethod
+    def meta_observations(observations: Observations) -> List[Dict]:
+        """
+        Return the meta block with the information detail of which observation where used to create the model
+
+        Parameters
+        ----------
+        observations : gammapy.data.observations.Observations
+            The collection of observations used to make the acceptance map
+
+        Returns
+        -------
+        meta : List of Dict
+        """
+
+        meta = []
+
+        for obs in observations:
+            meta.append({
+                "obs_id": obs.obs_id,
+                "obs_tstart": obs.tstart,
+                "obs_tstop": obs.tstop,
+                "obs_mid_alt_az": obs.get_pointing_altaz(obs.tmid),
+                "obs_pointing": obs.get_pointing_icrs(obs.tmid)
+            })
+        return meta
+
+    def meta_exclusion_region(self) -> List[Dict]:
+        """
+        Return the meta block with the information detail of which exclusion regions where used to create the model
+
+        Returns
+        -------
+        meta : List of Dict
+        """
+
+        if self.exclude_regions is None:
+            return []
+        return copy.deepcopy(self.exclude_regions)

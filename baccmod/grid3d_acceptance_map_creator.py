@@ -165,7 +165,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         return fnc(x, y, **m.values.to_dict())
 
-    def create_model(self, observations: Observations) -> Background3D:
+    def create_model(self, observations: Observations, add_intermediary_output: bool = False) -> Background3D:
         """
         Calculate a 3D grid acceptance map
 
@@ -173,6 +173,8 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         ----------
         observations : gammapy.data.observations.Observations
             The collection of observations used to make the acceptance map
+        add_intermediary_output: bool
+            Add for each model a meta_baccmod field with all the intermediary state of the computation
 
         Returns
         -------
@@ -226,6 +228,17 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
                                       data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
                                       fov_alignment=FoVAlignment.ALTAZ)
+
+
+        if add_intermediary_output:
+            meta = {'observations': self.meta_observations(observations),
+                    'exclusion_region': self.meta_exclusion_region(),
+                    'count_map': count_background,
+                    'corrected_exposure': exp_map_background,
+                    'total_exposure': exp_map_background_total,
+                    'energy_axis_computation': energy_axis_computation,
+                    'background_model_computation': data_background}
+            acceptance_map.meta['baccmod'] = meta
 
         return acceptance_map
 

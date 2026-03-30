@@ -65,7 +65,7 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          exclude_regions=exclude_regions,
                          **kwargs)
 
-    def create_model(self, observations: Observations) -> Background2D:
+    def create_model(self, observations: Observations, add_intermediary_output: bool = False) -> Background2D:
         """
         Calculate a radial acceptance map
 
@@ -73,6 +73,8 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         ----------
         observations : Observations
             The collection of observations used to make the acceptance map
+        add_intermediary_output: bool
+            Add for each model a baccmod field in meta with all the intermediary state of the computation
 
         Returns
         -------
@@ -103,6 +105,16 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 data_background[j, i] = value
 
         acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis], data=self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation))
+
+        if add_intermediary_output:
+            meta = {'observations': self.meta_observations(observations),
+                    'exclusion_region': self.meta_exclusion_region(),
+                    'count_map': count_map_background,
+                    'corrected_exposure': exp_map_background,
+                    'total_exposure': exp_map_background_total,
+                    'energy_axis_computation': energy_axis_computation,
+                    'background_model_computation': data_background}
+            acceptance_map.meta['baccmod'] = meta
 
         return acceptance_map
 
