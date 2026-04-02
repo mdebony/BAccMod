@@ -47,7 +47,7 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel pytest
           if [ ${{ matrix.gammapy-version }} = "1.1" ]; then python -m pip install astropy==5.3.4 numpy==1.22 scipy==1.8; elif [ ${{ matrix.gammapy-version }} = "1.2" ]; then python -m pip install astropy==6.1.7 matplotlib==3.8; else echo "No specific version of astropy and numpy required"; fi
           python -m pip install gammapy==${{ matrix.gammapy-version }}
-          git clone --depth 1 --branch v${{ matrix.gammapy-version }} https://github.com/gammapy/gammapy-data
+          if [ ${{ matrix.gammapy-version }} = "2.1rc1" ]; then git clone --depth 1 --branch v2.1; else git clone --depth 1 --branch v${{ matrix.gammapy-version }} https://github.com/gammapy/gammapy-data; fi
           export GAMMAPY_DATA=$PWD/gammapy-data/
           python -m pip install .
           python -c "import sys; print(\"Python version : \", sys.version)"
