@@ -16,12 +16,12 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
-        'gammapy>=1.1,<2.1',
-        'numpy<2.4',
-        'scipy<1.17',
+        'gammapy>=1.1,<2.2',
+        'numpy<2.5',
+        'scipy<1.18',
         'iminuit>=2.0,<3.0',
         'astropy>=4.0,<8.0',
-        'regions>=0.7,<0.11'
+        'regions>=0.7,<0.12'
     ],
     package_data={
             'baccmod': [
