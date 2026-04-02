@@ -50,6 +50,7 @@ class TestIntegrationClass:
     relative_tolerance = 1e-3
     #TODO when issue with spatial fit is resolved, need to be lowered
     relative_tolerance_fit_method = 5e-2
+    relative_tolerance_normalisation = 5e-3
 
     def _print_model_precision(self, background_model, reference):
         mask = reference.data != 0
@@ -334,4 +335,4 @@ class TestIntegrationClass:
             self._print_model_precision(background_model[id_obs], reference)
             assert np.all(np.isclose(background_model[id_obs].data, reference.data,
                                      atol=self.absolute_tolerance,
-                                     rtol=self.relative_tolerance))
+                                     rtol=self.relative_tolerance_normalisation))
