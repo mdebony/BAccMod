@@ -100,7 +100,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
 
         # 3) fit function on counts → “corrected counts”
-        corrected_counts = np.empty(count_background.shape)
+        predicted_counts = np.empty(count_background.shape)
         self.sq_rel_residuals = {"mean": [], "std": []}
 
         # coordinates system for the fit, based on the model dimension
@@ -120,7 +120,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             logger.info(
                 "Fitting background with a 3D model."
             )
-            corrected_counts = self._fit_background(
+            predicted_counts = self._fit_background(
                 self.model_to_fit,
                 *coords,
                 count_map=count_background.astype(int),
@@ -128,13 +128,16 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                 exp_map=exp_ds.data,
             )
         elif self.model_to_fit.n_inputs == 2:
+            logger.info(
+                "Fitting background per enery bin"
+                )
             for e in range(count_background.shape[0]):
-                logger.info(
-                    "Fitting background, energy bin [%.2f, %.2f] TeV",
+                logger.log(MOREINFO,
+                    "Fitting energy bin [%.2f, %.2f] TeV",
                     energy_axis_computation.edges[e].to_value('TeV'),
                     energy_axis_computation.edges[e + 1].to_value('TeV')
                 )
-                corrected_counts[e] = self._fit_background(
+                predicted_counts[e] = self._fit_background(
                     self.model_to_fit,
                     *coords,
                     count_map=count_background[e].astype(int),
@@ -142,12 +145,15 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                     exp_map=exp_ds.data[e],
                 )
         elif self.model_to_fit.n_inputs == 1:
+            logger.info(
+                "Fitting background per spatial bin"
+                )
             for x in range(count_background.shape[1]):
                 for y in range(count_background.shape[2]):
-                    logger.info(
+                    logger.log(MOREINFO,
                         "Fitting background, spatial bin %.2f, %.2f deg", centers[x], centers[y]
                     )
-                    corrected_counts[:,x,y] = self._fit_background(
+                    predicted_counts[:,x,y] = self._fit_background(
                         self.model_to_fit,
                         *coords,
                         count_map=count_background[:,x,y].astype(int),
@@ -175,7 +181,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
         # 5) normalize to flux units
         data_background = (
-            corrected_counts
+            predicted_counts
             / solid_angle[np.newaxis, :, :]
             / energy_axis_computation.bin_width[:, np.newaxis, np.newaxis]
             / livetime

@@ -10,10 +10,9 @@ from importlib import import_module
 
 __all__ = [
     "base_acceptance_map_creator",
-    "base_fit_acceptance_map_creator",
     "grid3d_acceptance_map_creator",
     "radial_acceptance_map_creator",
-    "spatial_fit_acceptance_map_creator",
+    "fit_acceptance_map_creator",
     "bkg_collection",
     "exception",
     "logging",
@@ -23,10 +22,9 @@ __all__ = [
 
 _alias_map = {
     "BaseAcceptanceMapCreator": "baccmod.base_acceptance_map_creator",
-    "BaseFitAcceptanceMapCreator": "baccmod.base_fit_acceptance_map_creator",
     "Grid3DAcceptanceMapCreator": "baccmod.grid3d_acceptance_map_creator",
     "RadialAcceptanceMapCreator": "baccmod.radial_acceptance_map_creator",
-    "SpatialFitAcceptanceMapCreator": "baccmod.spatial_fit_acceptance_map_creator",
+    "FitAcceptanceMapCreator": "baccmod.fit_acceptance_map_creator",
     "BackgroundCollectionZenith": "baccmod.bkg_collection",
     "BackgroundCollectionZenithSplitAzimuth": "baccmod.bkg_collection",
 }

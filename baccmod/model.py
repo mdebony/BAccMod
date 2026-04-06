@@ -16,7 +16,7 @@ __all__ = ['CustomModels',
            'powerlawenergy_gaussian2dspatial',
            'plcutoffsenergy_gaussgradspatial',
            'PowerLawCutOffsEnergy',
-           'Gaussian2DxLinearGradientsSpatial',
+           'Gaussian2DLinearGradientsSpatial',
            'PowerLawEnergyxGaussian2DSpatial',
            'PLCutOffsEnergyxGaussGradSpatial']
 
@@ -143,7 +143,7 @@ class PowerLawCutOffsEnergy(CustomModels):
     def __init__(self):
         super().__init__(powerlaw_inv_super_exp_cutoff_exp_cutoff)
 
-class Gaussian2DxLinearGradientsSpatial(CustomModels):
+class Gaussian2DLinearGradientsSpatial(CustomModels):
     """ 2D FittableModel : two dimensional spatial distribution convoluting a two dimensionnal Gaussian with a
         linear gradient. """
     def __init__(self):
