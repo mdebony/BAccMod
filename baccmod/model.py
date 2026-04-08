@@ -43,19 +43,22 @@ class CustomModels(FittableModel):
 
     CustomModels behaves similarly to `astropy.modeling.core.custom_model`. It can be used in two way:
 
-        - To create a new class to instanciate later.
-            ```
-            class MyCustomModel(CustomModels):
-                def __init__(self):
-                    super().__init__(fnc = my_function)
-            ...
-            my_fittable_model = MyCustomModel()
+    - To create a new class to instanciate later.
 
-           ```
-        - To directly initialise a model with the required function.
-           ```
-           my_fittable_model = CustomModels(fnc = my_function)
-           ```
+    .. code-block:: python
+
+      class MyCustomModel(CustomModels):
+          def __init__(self):
+              super().__init__(fnc = my_function)
+      ...
+      my_fittable_model = MyCustomModel()
+
+    - To directly initialise a model with the required function.
+
+    .. code-block:: python
+
+      my_fittable_model = CustomModels(fnc = my_function)
+
 
     Parameters
     ----------

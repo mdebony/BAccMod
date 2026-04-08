@@ -29,13 +29,7 @@ logger = logging.getLogger(__name__)
 
 class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
     """
-    Abstract base for any “fit”‐style 3D‐acceptance creator.  Inherits from Grid3DAcceptanceMapCreator
-    to have access to:
-      - self._create_base_computation_map()
-      - self._transform_exclusion_region_to_camera_frame()
-      - etc.
-    Implements `fit_background()` for a single energy slice.  Subclasses must implement
-    `create_acceptance_map()` to define how to assemble all energies + spatial layout.
+    Class for a “fit”‐based 3D‐acceptance creator.
     """
 
     def __init__(
