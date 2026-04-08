@@ -28,9 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
-    """
-    Class for a “fit”‐based 3D‐acceptance creator.
-    """
 
     def __init__(
         self,
@@ -40,12 +37,12 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         **kwargs
     ) -> None:
         """
-        Abstract base class for fitting.  All the “core‐Poisson‐fit” logic lives here.
+        Class for fitting a 3D acceptance model.
 
         Parameters
         ----------
         model_to_fit: FittableModel, optional
-            The model to fit to the data
+            The model to fit to the data. Can be 1, 2 or 3 dimensionnal.
         list_name_normalisation_parameter: list of string, optional
             All the parameters contained in this list in the model will be automatically normalised based on overall
             counts at the start of the fit, normalisation correction is done with hypothesis of addition of components,
@@ -70,7 +67,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
     def create_model(self, observations) -> Background3D:
         """
-        Calculate a 3D grid acceptance map by fitting 2D model in each energy slice
+        Calculate a 3D grid acceptance map by fitting a model, either globally, or per energy or spatial slices.
 
         Parameters
         ----------
@@ -145,7 +142,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             for x in range(count_background.shape[1]):
                 for y in range(count_background.shape[2]):
                     logger.log(MOREINFO,
-                        "Fitting background, spatial bin %.2f, %.2f deg", centers[x], centers[y]
+                        "Fitting spatial bin %.2f, %.2f deg", centers[x], centers[y]
                     )
                     predicted_counts[:,x,y] = self._fit_background(
                         self.model_to_fit,
