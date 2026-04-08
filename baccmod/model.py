@@ -99,7 +99,7 @@ class CustomModels(FittableModel):
                     fnc.__name__, self.n_inputs)
 
     def evaluate(self, *args, **kwargs):
-        pass
+        raise NotImplementedError("Class baccmod.model.CustomModels needs to be used to initialised.")
 
 
 # Below are some models function and classes created using CustomModels.
