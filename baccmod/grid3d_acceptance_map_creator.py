@@ -223,10 +223,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         data_background = corrected_counts / solid_angle[np.newaxis, :, :] / energy_axis_computation.bin_width[:, np.newaxis,
                                                                              np.newaxis] / livetime
 
-        data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
+        data_background_interpolated = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
 
         acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
-                                      data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
+                                      data=data_background_interpolated.to(u.Unit('s-1 MeV-1 sr-1')),
                                       fov_alignment=FoVAlignment.ALTAZ)
 
 
