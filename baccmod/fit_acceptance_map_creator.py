@@ -31,6 +31,8 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
     def __init__(
         self,
+        energy_axis: MapAxis,
+        offset_axis: MapAxis,
         model_to_fit: FittableModel = Gaussian2D(),
         list_name_normalisation_parameter: List[str] = ['amplitude'],
         maxiter: int = 1000,
@@ -56,12 +58,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         """
 
         # Call the “stack”‐only constructor in Grid3D, to set up geometry, offset axes, etc.
-        super().__init__(**kwargs)
+        super().__init__(energy_axis, offset_axis, **kwargs)
 
         self.sq_rel_residuals = {"mean": [], "std": []}
         self.model_to_fit = model_to_fit
-        if model_to_fit.n_inputs !=2:  #TODO remove once 1D and 3D models are tested
-            logger.warning('Only 2D models, fitted per energy bin, were thoroughly tested.')
         self.list_name_normalisation_parameter = list_name_normalisation_parameter
         self.maxiter = maxiter
 
@@ -89,8 +89,19 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         exp_ds = exp_map_background.downsample(self.oversample_map, preserve_counts=True)
         exp_total_ds = exp_map_background_total.downsample(self.oversample_map, preserve_counts=True)
 
+        # 3) build final offset axes (matching Grid3DAcceptanceMapCreator)
+        edges = self.offset_axis.edges
+        extended_edges = np.concatenate((-np.flip(edges), edges[1:]), axis=None)
+        extended_offset_axis_x = MapAxis.from_edges(extended_edges, name="fov_lon")
+        extended_offset_axis_y = MapAxis.from_edges(extended_edges, name="fov_lat")
 
-        # 3) fit function on counts → “corrected counts”
+        bin_width_x = np.repeat(extended_offset_axis_x.bin_width[:, np.newaxis], extended_offset_axis_x.nbin, axis=1)
+        bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
+        solid_angle = 4.0 * (np.sin(bin_width_x / 2) * np.sin(bin_width_y / 2)) * u.steradian
+
+        energy_bin_width = energy_axis_computation.bin_width
+
+        # 4) fit function on counts → “corrected counts”
         predicted_counts = np.empty(count_background.shape)
         self.sq_rel_residuals = {"mean": [], "std": []}
 
@@ -108,6 +119,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
         # perform the fit, looping over non fitted axes
         if self.model_to_fit.n_inputs == 3:
+            bin_size = (solid_angle[np.newaxis, :, :] * energy_bin_width[:, np.newaxis, np.newaxis]).value
             logger.info(
                 "Fitting background with a 3D model."
             )
@@ -117,8 +129,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                 count_map=count_background.astype(int),
                 exp_map_total=exp_total_ds.data,
                 exp_map=exp_ds.data,
+                bin_size=bin_size
             )
         elif self.model_to_fit.n_inputs == 2:
+            bin_size = solid_angle.value
             logger.info(
                 "Fitting background per enery bin"
                 )
@@ -134,8 +148,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                     count_map=count_background[e].astype(int),
                     exp_map_total=exp_total_ds.data[e],
                     exp_map=exp_ds.data[e],
+                    bin_size=bin_size
                 )
         elif self.model_to_fit.n_inputs == 1:
+            bin_size = energy_bin_width.value
             logger.info(
                 "Fitting background per spatial bin"
                 )
@@ -150,6 +166,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                         count_map=count_background[:,x,y].astype(int),
                         exp_map_total=exp_total_ds.data[:,x,y],
                         exp_map=exp_ds.data[:,x,y],
+                        bin_size=bin_size
                     )
         else:
             raise RuntimeError(f"The provided model dimension is incorrect : {self.model_to_fit.n_inputs}")
@@ -159,16 +176,6 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             np.array_str(np.round(self.sq_rel_residuals['mean'], 2)),
             np.array_str(np.round(self.sq_rel_residuals['std'], 2))
         )
-
-        # 4) build final offset axes (matching Grid3DAcceptanceMapCreator)
-        edges = self.offset_axis.edges
-        extended_edges = np.concatenate((-np.flip(edges), edges[1:]), axis=None)
-        extended_offset_axis_x = MapAxis.from_edges(extended_edges, name="fov_lon")
-        extended_offset_axis_y = MapAxis.from_edges(extended_edges, name="fov_lat")
-
-        bin_width_x = np.repeat(extended_offset_axis_x.bin_width[:, np.newaxis], extended_offset_axis_x.nbin, axis=1)
-        bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
-        solid_angle = 4.0 * (np.sin(bin_width_x / 2) * np.sin(bin_width_y / 2)) * u.steradian
 
         # 5) normalize to flux units
         data_background = (
@@ -186,7 +193,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         return acceptance_map
 
     def _fit_background(self, model: Model, *coords: np.ndarray, count_map: np.ndarray,
-                        exp_map_total: np.ndarray, exp_map: np.ndarray) -> np.ndarray:
+                        exp_map_total: np.ndarray, exp_map: np.ndarray, bin_size: np.ndarray) -> np.ndarray:
         """
         Perform a Poisson fit on the given map (could be 1D, 2D or 3D), given
         the fine‐binned exposure (exp_map) and total‐exposure (exp_map_total),
@@ -199,16 +206,18 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         coords : np.ndarray
             the list of coordinates
         count_map : np.ndarray
-            counts in each pixel, integer
+            counts in each bin, integer
         exp_map_total : np.ndarray
             exposure WITHOUT exclusion regions
         exp_map : np.ndarray
             exposure CORRECTED for exclusion regions
+        bin_size : np.ndarray
+            integral size of each bin
 
         Returns
         -------
-        fitted_counts_model : 2D np.ndarray
-            The best‐fit model of counts (on the same pixel grid as count_map).
+        fitted_counts_model : np.ndarray
+            The best‐fit model of counts (on the same bin grid as count_map).
         """
         total_counts = np.sum(count_map)
         # Skip the fit if there are no events
@@ -230,7 +239,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         # Correct normalisation of the model
         if self.list_name_normalisation_parameter is not None and len(self.list_name_normalisation_parameter) > 0:
             # Compute correction
-            init_count_model = np.sum(model_init(*coords)*exp_correction)
+            init_count_model = np.sum(model_init(*coords)*exp_correction*bin_size)
             correction_norm = total_counts/init_count_model
 
             # build list of free parameters
@@ -248,10 +257,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
         # Fit the model
         best_model = poisson_fitter(model_init, *coords, data=count_map, exposure_correction=exp_correction,
-                                    mask=mask, maxiter=self.maxiter)
+                                    mask=mask, maxiter=self.maxiter, bin_size=bin_size)
         # Collect results & (optionally) track residuals
         if logger.getEffectiveLevel() <= logging.INFO:
-            fitted_model = best_model(*coords) * exp_correction
+            fitted_model = best_model(*coords) * exp_correction * bin_size
             fitted_model[exp_map == 0] = 1.0
             rel_resid = 100 * (count_map - fitted_model) / fitted_model
             sq_rel_resid = (count_map - fitted_model) / np.sqrt(fitted_model)
@@ -263,4 +272,4 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
                 "Avg rel residual: %.1f,  Std = %.2f\n", np.mean(rel_resid), np.std(rel_resid)
             )
 
-        return best_model(*coords)
+        return best_model(*coords) * bin_size

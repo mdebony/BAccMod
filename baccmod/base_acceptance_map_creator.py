@@ -1135,7 +1135,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         # Return the provided bkg data if energy axis are matching
-        if len(energy_axis_computation.edges) == len(self.energy_axis.edges) and np.all(energy_axis_computation.edges == self.energy_axis.edges):
+        if energy_axis_computation.nbin == self.energy_axis.nbin and np.all(energy_axis_computation.edges == self.energy_axis.edges):
             logger.info('Identical computation energy axis and model energy axis, no interpolation required')
             return data_bkg
 
