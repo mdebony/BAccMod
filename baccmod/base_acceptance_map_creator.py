@@ -136,12 +136,16 @@ class BaseAcceptanceMapCreator(ABC):
         self.exclude_regions = exclude_regions
 
         # Store energy axis computation information
-        self.energy_axis_computation = self.energy_axis if energy_axis_computation is None else energy_axis_computation
+        if energy_axis_computation is None:
+            self.base_energy_axis_computation = self.energy_axis
+        else:
+            self.base_energy_axis_computation = energy_axis_computation
+        self._energy_axis_computation = None
         self.dynamic_energy_axis = dynamic_energy_axis
         self.dynamic_energy_axis_target_statistics = dynamic_energy_axis_target_statistics
         self.dynamic_energy_axis_maximum_wideness_bin = dynamic_energy_axis_maximum_wideness_bin
         self.dynamic_energy_axis_merge_zeros_low_energy = dynamic_energy_axis_merge_zeros_low_energy
-        self. dynamic_energy_axis_merge_zeros_high_energy = dynamic_energy_axis_merge_zeros_high_energy
+        self.dynamic_energy_axis_merge_zeros_high_energy = dynamic_energy_axis_merge_zeros_high_energy
 
         # Calculate map parameter
         self.n_bins_map = 2 * int(np.rint((self.max_offset / spatial_resolution).to(u.dimensionless_unscaled)))
@@ -178,6 +182,13 @@ class BaseAcceptanceMapCreator(ABC):
         # Store mini irf computation parameters
         self.use_mini_irf_computation = use_mini_irf_computation
         self.mini_irf_time_resolution = mini_irf_time_resolution
+
+    @property
+    def energy_axis_computation(self):
+        if self.dynamic_energy_axis:
+            return self._energy_axis_computation
+        else:
+            return self.base_energy_axis_computation
 
     @abstractmethod
     def create_model(self, observations: Observations) -> BackgroundIRF:
@@ -569,29 +580,27 @@ class BaseAcceptanceMapCreator(ABC):
 
         return time_interval
 
-    def _compute_dynamic_energy_axis(self, base_energy_axis: MapAxis, data: np.ndarray, nb_spatial_bin: int) -> MapAxis:
+    def _compute_dynamic_energy_axis(self, data: np.ndarray, nb_spatial_bin: int):
         """
         Compute a new energy axis from the base one to better have a more uniform number of event in each bin
 
         Parameters
         ----------
-        base_energy_axis: gammapy.maps.MapAxis
-            the base energy axis
         data : np.ndarray
-            the count distribution only binned in energy (using base_energy_axis binning)
+            the count distribution only binned in energy (using base_energy_axis_computation binning)
         nb_spatial_bin : int
             the number of spatial bin covering the data_energy_distribution
 
-        Returns
+        Updates
         -------
-        final_energy_axis: gammapy.maps.MapAxis
+        self.energy_axis_computation: gammapy.maps.MapAxis
             the optimal energy axis
         """
 
         # Relative numerical tolerance for the energy bin width limit
         r_tol = 1 + 1e-7
 
-        edges_energy_axis = base_energy_axis.edges
+        edges_energy_axis = self.base_energy_axis_computation.edges
 
         cumsumdata = np.cumsum(data)/nb_spatial_bin
         rev_cumsumdata = np.cumsum(data[::-1])[::-1]/nb_spatial_bin
@@ -636,7 +645,9 @@ class BaseAcceptanceMapCreator(ABC):
         if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
             zeros_highE = np.array([i0], dtype=int)
         indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
-        return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+
+        self._energy_axis_computation = MapAxis.from_energy_edges(
+            edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
 
     @staticmethod
     def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, Dict[int, Dict[str, Any]]]:
@@ -1116,7 +1127,7 @@ class BaseAcceptanceMapCreator(ABC):
             acceptance_map = self._apply_model_all_run(observations=observations, model=model)
         return acceptance_map
 
-    def _interpolate_bkg_to_energy_axis(self, data_bkg: u.Quantity, energy_axis_computation: MapAxis):
+    def _interpolate_bkg_to_energy_axis(self, data_bkg: u.Quantity):
         """
             Compute the final background model from the provided data by interpolating the energy axis used for
             computation to the ones for the model
@@ -1125,8 +1136,6 @@ class BaseAcceptanceMapCreator(ABC):
             ----------
             data_bkg : u.Quantity
                 The data cube of the background model. The energy axis needs to be the first one.
-            energy_axis_computation : gammapy.maps.geom.MapAxis
-                The energy axis used for computation
 
             Returns
             -------
@@ -1135,7 +1144,8 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         # Return the provided bkg data if energy axis are matching
-        if energy_axis_computation.nbin == self.energy_axis.nbin and np.all(energy_axis_computation.edges == self.energy_axis.edges):
+        if self.energy_axis_computation.nbin == self.energy_axis.nbin and np.all(
+                self.energy_axis_computation.edges == self.energy_axis.edges):
             logger.info('Identical computation energy axis and model energy axis, no interpolation required')
             return data_bkg
 
@@ -1147,7 +1157,7 @@ class BaseAcceptanceMapCreator(ABC):
         min_value = np.min(data_bkg.value[~mask_zero_input])
         max_value = np.max(data_bkg.value[~mask_zero_input])
 
-        interp_func = interp1d(x=np.log10(energy_axis_computation.center.to_value(u.TeV)),
+        interp_func = interp1d(x=np.log10(self.energy_axis_computation.center.to_value(u.TeV)),
                                y=raw_log_data,
                                axis=0,
                                fill_value='extrapolate')
