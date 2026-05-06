@@ -109,7 +109,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         """
 
         # Compute base data
-        count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation = self._create_base_computation_map(
+        count_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
             observations)
 
         # Downsample map to background model resolution
@@ -125,10 +125,10 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                exp_map_background_downsample.data)
         data_background = (corrected_counts /
                            solid_angle[np.newaxis, :, :] /
-                           energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /
+                           self.energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /
                            livetime)
 
-        data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
+        data_background = self._interpolate_bkg_to_energy_axis(data_background)
 
         acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
                                       data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
@@ -163,21 +163,18 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         offset_edges = self.offset_axis.edges
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
 
-        energy_axis_computation = self.energy_axis_computation.copy()
         if self.dynamic_energy_axis:
-            data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
+            data_energy_distribution = np.zeros(self.base_energy_axis_computation.nbin, dtype=np.int64)
             for obs in observations:
                 events_camera_frame = self._get_events_in_camera_frame(obs)
                 mask_event = np.logical_and(np.abs(events_camera_frame.lon) <= self.max_offset,
                                             np.abs(events_camera_frame.lat) <= self.max_offset)
-                distrib, _ = np.histogram(obs.events.energy[mask_event], energy_axis_computation.edges)
+                distrib, _ = np.histogram(obs.events.energy[mask_event], self.base_energy_axis_computation.edges)
                 data_energy_distribution += distrib
-            energy_axis_computation = self._compute_dynamic_energy_axis(energy_axis_computation,
-                                                                        data_energy_distribution,
-                                                                        len(offset_bins)**2)
+            self._compute_dynamic_energy_axis(data_energy_distribution, len(offset_bins)**2)
 
-        map_bins = (energy_axis_computation.edges, offset_bins, offset_bins)
-        geom = self._get_geom(energy_axis_computation)
+        map_bins = (self.energy_axis_computation.edges, offset_bins, offset_bins)
+        geom = self._get_geom(self.energy_axis_computation)
         count_background = np.zeros((len(map_bins[0]) - 1,
                                      len(map_bins[1]) - 1,
                                      len(map_bins[2]) - 1))
@@ -243,4 +240,4 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 exp_map_background_total.data += exp_map_obs_total.counts.data
                 livetime += obs.observation_live_time_duration
 
-        return count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation
+        return count_background, exp_map_background, exp_map_background_total, livetime
