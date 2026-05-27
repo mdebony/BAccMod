@@ -134,7 +134,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         elif self.model_to_fit.n_inputs == 2:
             bin_size = solid_angle.value
             logger.info(
-                "Fitting background per enery bin"
+                "Fitting background per energy bin"
                 )
             for e in range(count_background.shape[0]):
                 logger.log(MOREINFO,
@@ -172,7 +172,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             raise RuntimeError(f"The provided model dimension is incorrect : {self.model_to_fit.n_inputs}")
 
         logger.info(
-            "Average event sqrt‐residuals per energy: %s, std = %s",
+            "Average event sqrt‐residuals per fit: %s, std = %s",
             np.array_str(np.round(self.sq_rel_residuals['mean'], 2)),
             np.array_str(np.round(self.sq_rel_residuals['std'], 2))
         )
