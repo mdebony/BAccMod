@@ -31,6 +31,7 @@ from scipy.optimize import root_scalar
 
 from .bkg_collection import BackgroundCollectionZenith, BackgroundCollection, BackgroundCollectionZenithSplitAzimuth
 from .exception import BackgroundModelFormatException
+from .logging import MOREINFO
 from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
@@ -608,6 +609,7 @@ class BaseAcceptanceMapCreator(ABC):
         indexes_edges = [len(edges_energy_axis)-1]
 
         # Evaluate bin edges fulfilling the dynamic criteria
+        maximum_wideness_hit = 0
         while i > min_i:
             # Index for the mean count criteria
             j_counts = np.sum(rev_cumsumdata >= self.dynamic_energy_axis_target_statistics)-1
@@ -625,8 +627,7 @@ class BaseAcceptanceMapCreator(ABC):
                     j = j_counts
                 else:
                     j = j_maxw
-                    logger.warning(
-                        'Dynamic energy binning is unable to reach target statistics due to bin maximum bin wideness')
+                    maximum_wideness_hit += 1
                 indexes_edges.append(j)
                 rev_cumsumdata -= rev_cumsumdata[j]
                 i = j
@@ -636,7 +637,13 @@ class BaseAcceptanceMapCreator(ABC):
         if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
             zeros_highE = np.array([i0], dtype=int)
         indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
-        return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+        energy_axis = MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+        logger.log(MOREINFO,'Dynamic energy binning : %s',  np.array_str(np.round(energy_axis.edges, 3)))
+        logger.log(MOREINFO,'Number of bin limited by the maximum bin wideness : %d',  maximum_wideness_hit)
+        logger.debug('Number of counts per spatial bin in each energy bin:\n%s', np.array_str(
+            np.abs(np.append(np.diff(rev_cumsumdata[np.array(indexes_edges[:-1], dtype=int)]),
+                   cumsumdata[-1]+rev_cumsumdata[indexes_edges[-2]]-rev_cumsumdata[0]))))
+        return energy_axis
 
     @staticmethod
     def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, Dict[int, Dict[str, Any]]]:
@@ -910,6 +917,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
         models={}
         for key in off_observations.keys():
+            logger.info('Creating model for subset : %s', key)
             if zenith_interpolation or zenith_binning:
                 models[key] = self._create_model_cos_zenith_binned(observations=off_observations[key])
             else:
