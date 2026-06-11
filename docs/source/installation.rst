@@ -5,7 +5,7 @@ BAccMod is currently available through pip. It can be installed with this comman
 
 .. code-block:: bash
 
-    pip install gammapy
+    pip install baccmod
 
 Current dependencies are:
 
