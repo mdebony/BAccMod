@@ -11,6 +11,7 @@ BAccMod documentation
    :caption: Contents:
 
    self
+   installation
    api
    reference
 
