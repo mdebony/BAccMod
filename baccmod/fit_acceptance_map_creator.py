@@ -89,16 +89,8 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         exp_ds = exp_map_background.downsample(self.oversample_map, preserve_counts=True)
         exp_total_ds = exp_map_background_total.downsample(self.oversample_map, preserve_counts=True)
 
-        # 3) build final offset axes (matching Grid3DAcceptanceMapCreator)
-        edges = self.offset_axis.edges
-        extended_edges = np.concatenate((-np.flip(edges), edges[1:]), axis=None)
-        extended_offset_axis_x = MapAxis.from_edges(extended_edges, name="fov_lon")
-        extended_offset_axis_y = MapAxis.from_edges(extended_edges, name="fov_lat")
-
-        bin_width_x = np.repeat(extended_offset_axis_x.bin_width[:, np.newaxis], extended_offset_axis_x.nbin, axis=1)
-        bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
-        solid_angle = 4.0 * (np.sin(bin_width_x / 2) * np.sin(bin_width_y / 2)) * u.steradian
-
+        # 3) Get spatial axis for the bkg model and the bins size
+        extended_offset_axis_x, extended_offset_axis_y, solid_angle = self._get_ext_axis_and_solid_angle()
         energy_bin_width = energy_axis_computation.bin_width
 
         # 4) fit function on counts → “corrected counts”
