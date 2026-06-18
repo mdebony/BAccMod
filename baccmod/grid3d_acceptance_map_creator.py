@@ -81,6 +81,19 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                          exclude_regions=exclude_regions,
                          **kwargs)
 
+    def _get_ext_axis_and_solid_angle(self):
+        """ Compute the solid angle of spatial bins """
+        edges = self.offset_axis.edges
+        extended_edges = np.concatenate((-np.flip(edges), edges[1:]), axis=None)
+        extended_offset_axis_x = MapAxis.from_edges(extended_edges, name="fov_lon")
+        extended_offset_axis_y = MapAxis.from_edges(extended_edges, name="fov_lat")
+
+        bin_width_x = np.repeat(extended_offset_axis_x.bin_width[:, np.newaxis], extended_offset_axis_x.nbin, axis=1)
+        bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
+        solid_angle = 4.0 * (np.sin(bin_width_x / 2) * np.sin(bin_width_y / 2)) * u.steradian
+
+        return extended_offset_axis_x, extended_offset_axis_y, solid_angle
+
     def create_model(self, observations: Observations) -> Background3D:
         """
         Calculate a 3D grid acceptance map
@@ -104,18 +117,12 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         exp_map_background_total_downsample = exp_map_background_total.downsample(self.oversample_map,
                                                                                   preserve_counts=True)
 
-        # Create axis for bkg model
-        edges = self.offset_axis.edges
-        extended_edges = np.concatenate((-np.flip(edges), edges[1:]), axis=None)
-        extended_offset_axis_x = MapAxis.from_edges(extended_edges, name='fov_lon')
-        bin_width_x = np.repeat(extended_offset_axis_x.bin_width[:, np.newaxis], extended_offset_axis_x.nbin, axis=1)
-        extended_offset_axis_y = MapAxis.from_edges(extended_edges, name='fov_lat')
-        bin_width_y = np.repeat(extended_offset_axis_y.bin_width[np.newaxis, :], extended_offset_axis_y.nbin, axis=0)
+        # Create spatial axis for the bkg model and the bin solid angle
+        extended_offset_axis_x, extended_offset_axis_y, solid_angle = self._get_ext_axis_and_solid_angle()
 
         # Compute acceptance_map
         corrected_counts = count_background * (exp_map_background_total_downsample.data /
                                                exp_map_background_downsample.data)
-        solid_angle = 4. * (np.sin(bin_width_x / 2.) * np.sin(bin_width_y / 2.)) * u.steradian
         data_background = (corrected_counts /
                            solid_angle[np.newaxis, :, :] /
                            energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /

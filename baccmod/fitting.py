@@ -21,7 +21,8 @@ def poisson_fitter(model: Model,
                    data: np.ndarray,
                    exposure_correction: np.ndarray = None,
                    mask: np.ndarray = None,
-                   maxiter: int = 1000) -> Model:
+                   maxiter: int = 1000,
+                   bin_size: np.ndarray = 1) -> Model:
     """
     Fit the model to the data following poisson likelihood statistics and using iminuit
 
@@ -40,6 +41,8 @@ def poisson_fitter(model: Model,
         maxiter : int
             maximum number of iteration for fitting, as the fitting is performed in two steps,
             could be the double of this value in practice
+        bin_size : np.ndarray
+            integral size of each bin
 
     Returns
     -------
@@ -88,7 +91,7 @@ def poisson_fitter(model: Model,
     # negative log‑likelihood
     def neg_logL(**pars):
         apply_params_and_tied(pars)
-        mu = model_copy(*coords) * exposure_correction
+        mu = model_copy(*coords) * exposure_correction * bin_size
         return -np.sum(log_poisson(mu[mask], data[mask], log_fact[mask]))
 
     # wrapper to accept either positional arguments or keyword arguments (exclusives)
@@ -139,7 +142,8 @@ def log_factorial(x: np.ndarray) -> np.ndarray:
 
 
 def log_poisson(mu: np.ndarray, x: np.ndarray, log_factorial_x: np.ndarray) -> np.ndarray:
+    """ Poisson pdf in log scale. """
     if np.any(mu <= 0):
         logger.warning('log poisson received a zero or negative value.')
-        mu[mu <= 0] = np.min(mu[mu > 0])/2
+        mu[mu <= 0] = np.finfo(mu.dtype).tiny
     return -mu + x * np.log(mu) - log_factorial_x
