@@ -140,7 +140,7 @@ def plcutoffsenergy_gaussgradspatial(e, x, y, amplitude=1.0, index=2.0, eref=1.0
     return  (powerlaw_inv_super_exp_cutoff_exp_cutoff(e, amplitude, index, eref, b, ecl, ech) *
              gaussian2d_bilinear_gradient(x, y, 1.0, x_mean, y_mean, x_stddev, y_stddev, theta, x_gradient, y_gradient))
 
-class PowerLawCutOffsEnergy(CustomModels):
+class PowerLaw2CutOffsEnergy(CustomModels):
     """ 1D FittableModel : powerlaw energy distribution with a super exponential cut-off at low energy and an
         exponential cut-off at high energy. """
     def __init__(self):

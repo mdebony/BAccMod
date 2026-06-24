@@ -5,7 +5,7 @@ from astropy.modeling.core import ModelDefinitionError
 
 from baccmod.model import (CustomModels,
                            Gaussian2DLinearGradientsSpatial,
-                           PowerLawCutOffsEnergy,
+                           PowerLaw2CutOffsEnergy,
                            PLCutOffsEnergyxGaussGradSpatial)
 
 
@@ -16,7 +16,7 @@ class TestModelClass(unittest.TestCase):
     numerical_a_tolerance = 1e-8
 
     def test_powerlaw_cutoffs(self):
-        model = PowerLawCutOffsEnergy()
+        model = PowerLaw2CutOffsEnergy()
         e1 = model.evaluate(1, amplitude=100.0, index=2.2, eref=1.0, b=2.1, ecl=0.1, ech=100.0)
         e2 = model.evaluate(np.array([1, 2, 3, 4, 5]), amplitude=100.0, index=2.2, eref=1.0, b=2.1, ecl=0.1, ech=100.0)
         assert np.isclose(e1, 98.22167398064686,
