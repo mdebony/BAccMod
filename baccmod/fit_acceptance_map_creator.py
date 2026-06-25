@@ -83,7 +83,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         (count_background,
          exp_map_background,
          exp_map_background_total,
-         livetime, energy_axis_computation) = self._create_base_computation_map(observations)
+         livetime) = self._create_base_computation_map(observations)
 
         # 2) downsample exposures
         exp_ds = exp_map_background.downsample(self.oversample_map, preserve_counts=True)
@@ -91,7 +91,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
         # 3) Get spatial axis for the bkg model and the bins size
         extended_offset_axis_x, extended_offset_axis_y, solid_angle = self._get_ext_axis_and_solid_angle()
-        energy_bin_width = energy_axis_computation.bin_width
+        energy_bin_width = self.energy_axis_computation.bin_width
 
         # 4) fit function on counts → “corrected counts”
         predicted_counts = np.empty(count_background.shape)
@@ -103,7 +103,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         centers = self.offset_axis.center.to_value('deg')
         centers = np.concatenate((-np.flip(centers), centers), axis=None)
         if self.model_to_fit.n_inputs != 2:
-            coordinates.append(energy_axis_computation.center.to_value('TeV'))
+            coordinates.append(self.energy_axis_computation.center.to_value('TeV'))
         if self.model_to_fit.n_inputs > 1:
             coordinates.append(centers)
             coordinates.append(centers)
@@ -126,13 +126,13 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         elif self.model_to_fit.n_inputs == 2:
             bin_size = solid_angle.value
             logger.info(
-                "Fitting background per enery bin"
+                "Fitting background per energy bin"
                 )
             for e in range(count_background.shape[0]):
                 logger.log(MOREINFO,
                     "Fitting energy bin [%.2f, %.2f] TeV",
-                    energy_axis_computation.edges[e].to_value('TeV'),
-                    energy_axis_computation.edges[e + 1].to_value('TeV')
+                    self.energy_axis_computation.edges[e].to_value('TeV'),
+                    self.energy_axis_computation.edges[e + 1].to_value('TeV')
                 )
                 predicted_counts[e] = self._fit_background(
                     self.model_to_fit,
@@ -164,7 +164,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
             raise RuntimeError(f"The provided model dimension is incorrect : {self.model_to_fit.n_inputs}")
 
         logger.info(
-            "Average event sqrt‐residuals per energy: %s, std = %s",
+            "Average event sqrt‐residuals per fit: %s, std = %s",
             np.array_str(np.round(self.sq_rel_residuals['mean'], 2)),
             np.array_str(np.round(self.sq_rel_residuals['std'], 2))
         )
@@ -173,10 +173,10 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         data_background = (
             predicted_counts
             / solid_angle[np.newaxis, :, :]
-            / energy_axis_computation.bin_width[:, np.newaxis, np.newaxis]
+            / self.energy_axis_computation.bin_width[:, np.newaxis, np.newaxis]
             / livetime
         )
-        data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
+        data_background = self._interpolate_bkg_to_energy_axis(data_background)
 
         # 6) instantiate Background3D
         acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
