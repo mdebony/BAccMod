@@ -1,15 +1,20 @@
-import os
 import logging
+import os
+import pytest
 
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import EarthLocation, SkyCoord
+from astropy.modeling.functional_models import Gaussian2D
+from astropy.modeling.powerlaws import PowerLaw1D
 from gammapy.data import DataStore
 from gammapy.irf import Background3D, Background2D
 from gammapy.maps import MapAxis
 from regions import CircleSkyRegion
 
-from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator
+from baccmod import RadialAcceptanceMapCreator, Grid3DAcceptanceMapCreator, FitAcceptanceMapCreator
+
+from baccmod.model import CustomModels, PowerLawEnergyxGaussian2DSpatial
 
 import gammapy
 gammapy_version = gammapy.__version__
@@ -19,7 +24,8 @@ gammapy_ver_patch = 0
 if len(gammapy_version.split('.')) > 2:
     gammapy_ver_patch = int(gammapy_version.split('.')[2])
 
-
+# Activate all logging messages
+logging.getLogger('baccmod').setLevel('DEBUG')
 
 class TestIntegrationClass:
     datastore = DataStore.from_dir(os.path.join(os.environ['GAMMAPY_DATA'], 'hess-dl3-dr1'))
@@ -45,6 +51,9 @@ class TestIntegrationClass:
     energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
     energy_axis_computation_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
+
+    fast_energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=2, name='energy')
+    fast_offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=2, name='offset')
 
     absolute_tolerance = 1e-5
     relative_tolerance = 1e-3
@@ -72,15 +81,106 @@ class TestIntegrationClass:
                                  atol=self.absolute_tolerance,
                                  rtol=self.relative_tolerance))
 
-    def test_integration_spatial_fit(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               offset_axis=self.offset_axis,
-                                               oversample_map=5,
-                                               exclude_regions=self.exclude_region_PKS_2155,
-                                               method='fit')
+    def test_CustomModels(self):
+        pwl_model = PowerLaw1D()
+        def powerlaw(e, amplitude=1.0, x_0 = 1.0, alpha=1.0):
+            return PowerLaw1D.evaluate(e, amplitude, x_0, alpha)
+        pwl_model_custom = CustomModels(powerlaw)
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=pwl_model,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=pwl_model_custom,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model_custom = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+
+        assert np.all(background_model.data == background_model_custom.data)
+
+    def test_integration_error_fit(self):
+        def four_input_fnc(x1, x2, x3, x4):
+            return x1 + x2 + x3 + x4
+        model = CustomModels(four_input_fnc)
+
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.fast_energy_axis,
+                                            offset_axis=self.fast_offset_axis,
+                                            oversample_map=1,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            list_name_normalisation_parameter=[])
+        with pytest.raises(RuntimeError) as err:
+            bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert str(err.value)[:43] == "The provided model dimension is incorrect :"
+
+    def test_integration_energy_fit(self):
+        model = PowerLaw1D()
+        model.amplitude.bounds = [0.5, None]
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            list_name_normalisation_parameter=['amplitude',])
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spectral_fit_bkg.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance_fit_method))
+
+    def test_integration_spatial_fit(self):
+        model = Gaussian2D(x_mean=0, y_mean=0, x_stddev=1, y_stddev=1, theta=0)
+        model.amplitude.bounds = [0.5, None]
+        model.x_mean.bounds = [-1, 1]
+        model.y_mean.bounds = [-1, 1]
+        model.x_stddev.bounds = [0.01, 5]
+        model.y_stddev.bounds = [0.01, 5]
+        model.y_stddev.tied = lambda model: model.x_stddev.value
+        model.theta.fixed = True
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            list_name_normalisation_parameter=['amplitude',])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg.fits')
+        mask = reference.data != 0
+        relative_error = np.abs(background_model.data - reference.data)[mask] / reference.data[mask]
+        if np.sum(relative_error > 1e-4) > 0:
+            logging.warning(f'Maximum relative error : {np.nanmax(relative_error)}, fraction above 1e-3 : {np.sum(relative_error > 1e-3)/relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2)/relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1)/relative_error.size}')
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance_fit_method))
+
+    def test_integration_3D_fit(self):
+        model = PowerLawEnergyxGaussian2DSpatial()
+        model.amplitude.bounds = [0.5, None]
+        model.x_mean.bounds = [-1, 1]
+        model.y_mean.bounds = [-1, 1]
+        model.x_stddev.bounds = [0.01, 5]
+        model.y_stddev.bounds = [0.01, 5]
+        model.y_stddev.tied = lambda model: model.x_stddev.value
+        model.theta.fixed = True
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155,
+                                            model_to_fit=model,
+                                            # test having one bad paramenter in the list to normalise
+                                            list_name_normalisation_parameter=['amplitude', 'bad_param'])
+        background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
+        assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_fit_bkg.fits')
         self._print_model_precision(background_model, reference)
         assert np.all(np.isclose(background_model.data, reference.data,
                                  atol=self.absolute_tolerance,
@@ -114,12 +214,11 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation,
-                                               offset_axis=self.offset_axis,
-                                               oversample_map=5,
-                                               exclude_regions=self.exclude_region_PKS_2155,
-                                               method='fit')
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            energy_axis_computation=self.energy_axis_computation,
+                                            offset_axis=self.offset_axis,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155)
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_irregular_energy.fits')
@@ -161,14 +260,13 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_dynamic_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation_dense,
-                                               offset_axis=self.offset_axis,
-                                               dynamic_energy_axis=True,
-                                               dynamic_energy_axis_target_statistics=100,
-                                               oversample_map=5,
-                                               exclude_regions=self.exclude_region_PKS_2155,
-                                               method='fit')
+        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+                                            energy_axis_computation=self.energy_axis_computation_dense,
+                                            offset_axis=self.offset_axis,
+                                            dynamic_energy_axis=True,
+                                            dynamic_energy_axis_target_statistics=100,
+                                            oversample_map=5,
+                                            exclude_regions=self.exclude_region_PKS_2155)
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
         reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spatial_fit_bkg_dynamic_irregular_energy.fits')
