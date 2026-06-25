@@ -129,6 +129,11 @@ class TestIntegrationClass:
                                             list_name_normalisation_parameter=['amplitude',])
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_spectral_fit_bkg.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance_fit_method))
 
     def test_integration_spatial_fit(self):
         model = Gaussian2D(x_mean=0, y_mean=0, x_stddev=1, y_stddev=1, theta=0)
@@ -175,6 +180,11 @@ class TestIntegrationClass:
                                             list_name_normalisation_parameter=['amplitude', 'bad_param'])
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
         assert type(background_model) is Background3D
+        reference = Background3D.read('ressource/test_data/reference_model/pks_2155_3D_fit_bkg.fits')
+        self._print_model_precision(background_model, reference)
+        assert np.all(np.isclose(background_model.data, reference.data,
+                                 atol=self.absolute_tolerance,
+                                 rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D(self):
         bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
