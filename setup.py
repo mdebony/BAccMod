@@ -9,7 +9,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name='BAccMod',
     packages=find_packages(),
-    version='0.4.1',
+    version='0.5.0_dev',
     license='LGPL v3',
     description='Calculate 2D and 3d acceptance model for creating maps with gammapy (IACT analysis)',
     url='https://github.com/mdebony/BAccMod',
@@ -23,6 +23,17 @@ setup(
         'astropy>=4.0,<8.0',
         'regions>=0.7,<0.12'
     ],
+    extras_require={
+        'dev': [
+            'pytest',
+        ],
+        'docs': [
+            'sphinx',
+            'sphinx-autoapi',
+            'sphinx-rtd-theme',
+            'sphinxcontrib-napoleon',
+        ],
+    },
     package_data={
             'baccmod': [
                 'resources/*',

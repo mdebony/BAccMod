@@ -4,3 +4,5 @@ dist
 __pycache__
 .idea
 .ipynb_checkpoints
+docs/output
+docs/build

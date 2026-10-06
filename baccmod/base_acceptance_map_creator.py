@@ -31,6 +31,7 @@ from scipy.optimize import root_scalar
 
 from .bkg_collection import BackgroundCollectionZenith, BackgroundCollection, BackgroundCollectionZenithSplitAzimuth
 from .exception import BackgroundModelFormatException
+from .logging import MOREINFO
 from .toolbox import (compute_rotation_speed_fov,
                       get_unique_wobble_pointings,
                       get_time_mini_irf,
@@ -40,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 
 class BaseAcceptanceMapCreator(ABC):
+
+    erfa_astrom_interpolation_interval = 1000.*u.s
 
     def __init__(self,
                  energy_axis: MapAxis,
@@ -243,8 +246,7 @@ class BaseAcceptanceMapCreator(ABC):
         return WcsGeom.create(skydir=self.center_map, npix=(self.n_bins_map, self.n_bins_map),
                               binsz=self.spatial_bin_size, frame="icrs", axes=[energy_axis])
 
-    @staticmethod
-    def _get_events_in_camera_frame(obs: Observation) -> SkyCoord:
+    def _get_events_in_camera_frame(self, obs: Observation) -> SkyCoord:
         """
         Transform events and pointing of an obs from a sky frame to camera frame
 
@@ -269,18 +271,19 @@ class BaseAcceptanceMapCreator(ABC):
             return SkyCoord(lon=[]*u.deg, lat=[]*u.deg, frame=camera_frame)
 
         else:
-            # Transform to altaz frame
-            altaz_frame = AltAz(obstime=obs.events.time,
-                                location=obs.observatory_earth_location)
-            events_altaz = obs.events.radec.transform_to(altaz_frame)
-            pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
+            with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_astrom_interpolation_interval)):
+                # Transform to altaz frame
+                altaz_frame = AltAz(obstime=obs.events.time,
+                                    location=obs.observatory_earth_location)
+                events_altaz = obs.events.radec.transform_to(altaz_frame)
+                pointing_altaz = obs.get_pointing_icrs(obs.events.time).transform_to(altaz_frame)
 
-            # Rotation to transform to camera frame
-            camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
-                                                       az=pointing_altaz.az,
-                                                       obstime=obs.events.time,
-                                                       location=obs.observatory_earth_location),
-                                          rotation=[0., ] * len(obs.events.time) * u.deg)
+                # Rotation to transform to camera frame
+                camera_frame = SkyOffsetFrame(origin=AltAz(alt=pointing_altaz.alt,
+                                                           az=pointing_altaz.az,
+                                                           obstime=obs.events.time,
+                                                           location=obs.observatory_earth_location),
+                                              rotation=[0., ] * len(obs.events.time) * u.deg)
 
             return events_altaz.transform_to(camera_frame)
 
@@ -554,7 +557,7 @@ class BaseAcceptanceMapCreator(ABC):
         time_axis = np.linspace(obs.tstart, obs.tstop, num=n_bin)
 
         # Compute the zenith for each evaluation time
-        with erfa_astrom.set(ErfaAstromInterpolator(1000 * u.s)):
+        with erfa_astrom.set(ErfaAstromInterpolator(self.erfa_astrom_interpolation_interval)):
             altaz_coordinates = obs.get_pointing_altaz(time_axis)
             zenith_values = altaz_coordinates.zen
             if np.any(zenith_values < np.min(edge_zenith_bin)) or np.any(zenith_values > np.max(edge_zenith_bin)):
@@ -606,6 +609,7 @@ class BaseAcceptanceMapCreator(ABC):
         indexes_edges = [len(edges_energy_axis)-1]
 
         # Evaluate bin edges fulfilling the dynamic criteria
+        maximum_wideness_hit = 0
         while i > min_i:
             # Index for the mean count criteria
             j_counts = np.sum(rev_cumsumdata >= self.dynamic_energy_axis_target_statistics)-1
@@ -623,8 +627,7 @@ class BaseAcceptanceMapCreator(ABC):
                     j = j_counts
                 else:
                     j = j_maxw
-                    logger.warning(
-                        'Dynamic energy binning is unable to reach target statistics due to bin maximum bin wideness')
+                    maximum_wideness_hit += 1
                 indexes_edges.append(j)
                 rev_cumsumdata -= rev_cumsumdata[j]
                 i = j
@@ -634,7 +637,13 @@ class BaseAcceptanceMapCreator(ABC):
         if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
             zeros_highE = np.array([i0], dtype=int)
         indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
-        return MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+        energy_axis = MapAxis.from_energy_edges(edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
+        logger.log(MOREINFO,'Dynamic energy binning : %s',  np.array_str(np.round(energy_axis.edges, 3)))
+        logger.log(MOREINFO,'Number of bin limited by the maximum bin wideness : %d',  maximum_wideness_hit)
+        logger.debug('Number of counts per spatial bin in each energy bin:\n%s', np.array_str(
+            np.abs(np.append(np.diff(rev_cumsumdata[np.array(indexes_edges[:-1], dtype=int)]),
+                   cumsumdata[-1]+rev_cumsumdata[indexes_edges[-2]]-rev_cumsumdata[0]))))
+        return energy_axis
 
     @staticmethod
     def _split_observations_azimuth(observations: Observations) -> Tuple[Observations, Observations, Dict[int, Dict[str, Any]]]:
@@ -858,7 +867,7 @@ class BaseAcceptanceMapCreator(ABC):
         logger.info(f"cos zenith bin edges: {list(np.round(cos_zenith_bin, 2))}")
         logger.info(f"cos zenith bin centers: {list(np.round(bin_center, 2))}")
         logger.info(f"observation per bin: {list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin)[0])}")
-        logger.info(f"livetime per bin [s]: " +
+        logger.info("livetime per bin [s]: " +
                     f"{list(np.histogram(cos_zenith_observations, bins=cos_zenith_bin, weights=livetime_observations)[0].astype(int))}")
         if per_wobble:
             wobble_observations_bool_arr = [(np.array(wobble_observations.tolist()) == wobble) for wobble in
@@ -908,6 +917,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
         models={}
         for key in off_observations.keys():
+            logger.info('Creating model for subset : %s', key)
             if zenith_interpolation or zenith_binning:
                 models[key] = self._create_model_cos_zenith_binned(observations=off_observations[key])
             else:
@@ -1133,7 +1143,7 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         # Return the provided bkg data if energy axis are matching
-        if len(energy_axis_computation.edges) == len(self.energy_axis.edges) and np.all(energy_axis_computation.edges == self.energy_axis.edges):
+        if energy_axis_computation.nbin == self.energy_axis.nbin and np.all(energy_axis_computation.edges == self.energy_axis.edges):
             logger.info('Identical computation energy axis and model energy axis, no interpolation required')
             return data_bkg
 

@@ -9,7 +9,6 @@
 name: Create and upload Python Package
 
 on:
-  workflow_dispatch:
   release:
     types: [published]
 
