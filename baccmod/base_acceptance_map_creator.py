@@ -15,7 +15,7 @@ from typing import Tuple, List, Optional, Union, Any, Dict
 
 import astropy.units as u
 import numpy as np
-from astropy.coordinates import SkyCoord, AltAz, SkyOffsetFrame, Angle
+from astropy.coordinates import SkyCoord, AltAz, SkyOffsetFrame
 from astropy.coordinates.erfa_astrom import erfa_astrom, ErfaAstromInterpolator
 from astropy.time import Time
 from gammapy.data import Observations, Observation
@@ -684,23 +684,10 @@ class BaseAcceptanceMapCreator(ABC):
                 else:
                     east_west = False
 
-                # Determine if the line is crossed at az=0 or az=180
-                time_eval = np.linspace(obs.tstart, obs.tstop, num=100)
-                az_eval = Angle(obs.get_pointing_altaz(time_eval).az)
-                if np.min(np.abs(az_eval-180.*u.deg)) < np.min(az_eval):
-                    az_split = 180.*u.deg
-                else:
-                    az_split = 0.*u.deg
-
                 # Search time for the split
-                def wrap_angle(angle):
-                    mask = angle > 270.*u.deg
-                    angle_final = angle.copy()
-                    angle_final[mask] -= 360*u.deg
-                    return angle_final
                 def root_function(t):
                     tt = Time(t, format = 'unix')
-                    return (wrap_angle(Angle(obs.get_pointing_altaz(tt).az))-az_split).to_value(u.deg)
+                    return np.sin(obs.get_pointing_altaz(tt).az)
                 res = root_scalar(root_function, method='brentq', bracket=[obs.tstart.unix, obs.tstop.unix])
                 t_split = Time(res.root, format='unix')
                 if east_west:
