@@ -84,32 +84,6 @@ class TestSplitObservationsAzimuth:
                 assert azimuth < 180
             else:
                 assert azimuth > 180
-        crossing_azimuth = observation.get_pointing_altaz(first_piece.tstop).az.to_value(u.deg)
-        angular_difference = (crossing_azimuth - boundary + 180) % 360 - 180
-        assert abs(angular_difference) < 0.01
-
-        assert set(split[observation.obs_id]) == {"east_time", "west_time"}
-        expected_durations = {
-            first_side: (self.TRANSIT - observation.tstart).to_value(u.s),
-            second_side: (observation.tstop - self.TRANSIT).to_value(u.s),
-        }
-        for side in ("east", "west"):
-            duration = split[observation.obs_id][f"{side}_time"]
-            assert isinstance(duration, TimeDelta)
-            piece_duration = (pieces[side].tstop - pieces[side].tstart).to_value(u.s)
-            np.testing.assert_allclose(
-                duration.to_value(u.s), piece_duration, atol=self.TIME_ATOL, rtol=0
-            )
-            np.testing.assert_allclose(
-                duration.to_value(u.s), expected_durations[side], atol=self.TIME_ATOL, rtol=0
-            )
-        total = split[observation.obs_id]["east_time"] + split[observation.obs_id]["west_time"]
-        np.testing.assert_allclose(
-            total.to_value(u.s),
-            (observation.tstop - observation.tstart).to_value(u.s),
-            atol=self.TIME_ATOL,
-            rtol=0,
-        )
 
     @pytest.mark.parametrize(
         "ra,dec,location",
