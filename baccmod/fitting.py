@@ -144,6 +144,5 @@ def log_factorial(x: np.ndarray) -> np.ndarray:
 def log_poisson(mu: np.ndarray, x: np.ndarray, log_factorial_x: np.ndarray) -> np.ndarray:
     """ Poisson pdf in log scale. """
     if np.any(mu <= 0):
-        logger.warning('log poisson received a zero or negative value.')
         mu[mu <= 0] = np.finfo(mu.dtype).tiny
     return -mu + x * np.log(mu) - log_factorial_x
