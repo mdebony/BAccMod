@@ -8,9 +8,8 @@
 # ---------------------------------------------------------------------
 
 import astropy.units as u
-import numpy as np
 import pytest
-from astropy.time import Time, TimeDelta
+from astropy.time import Time
 from gammapy.data import Observations
 
 from baccmod import BaseAcceptanceMapCreator
@@ -21,18 +20,21 @@ class TestSplitObservationsAzimuth:
     TIME_ATOL = 1e-3  # Seconds.
     TRANSIT = Time("2020-01-01T00:00:00", scale="utc")
 
-    # RA, Dec, site, split azimuth, side before transit, pytest ID.
+
+    # Source are chosen to cross the border between east and west at TRANSIT time
+    # RA, Dec, site, azimuth at the crossing, side before transit, pytest ID.
     ORDINARY_TARGETS = (
-        (81.272328037, 80.745322727, "ctao_north", 0, "east", "longitude-wrapping-north-upper-east-to-west"),
-        (262.574349275, 79.253512362, "ctao_north", 0, "west", "longitude-wrapping-north-lower-west-to-east"),
-        (116.899059158, -80.223517116, "hess", 180, "east", "south-upper-east-to-west"),
-        (295.854713683, -79.775506378, "hess", 180, "west", "south-lower-west-to-east"),
+        (81.272328037, 80.745322727, "ctao_north", 0 * u.deg, "east", "longitude-wrapping-north-upper-east-to-west"),
+        (262.574349275, 79.253512362, "ctao_north", 0 * u.deg, "west", "longitude-wrapping-north-lower-west-to-east"),
+        (116.899059158, -80.223517116, "hess", 180 * u.deg, "east", "south-upper-east-to-west"),
+        (295.854713683, -79.775506378, "hess", 180 * u.deg, "west", "south-lower-west-to-east"),
     )
 
-    # RA, Dec, site, split azimuth, side before transit, pytest ID.
+    # Source are chosen to cross the border between east and west at TRANSIT time
+    # RA, Dec, site, azimuth at the crossing, side before transit, pytest ID.
     NEAR_TARGETS = (
-        (81.907183001, 28.647100279, "ctao_north", 180, "east", "north-zenith"),
-        (116.400565072, -23.122597137, "hess", 0, "east", "south-zenith"),
+        (81.907183001, 28.647100279, "ctao_north", 180 * u.deg, "east", "north-zenith"),
+        (116.400565072, -23.122597137, "hess", 0 * u.deg, "east", "south-zenith"),
     )
 
     @pytest.mark.parametrize(
@@ -52,6 +54,33 @@ class TestSplitObservationsAzimuth:
         self, ra, dec, location, boundary, first_side, start_offset, stop_offset,
         make_observation, observatory_locations,
     ):
+        """Check that a transit crossing produces contiguous east and west pieces.
+
+        Cover both crossing directions at 0 and 180 degrees, including tracks near the zenith. The crossing happen at transit time
+
+        Parameters
+        ----------
+        ra : float
+            ICRS right ascension of the target, in degrees.
+        dec : float
+            ICRS declination of the target, in degrees.
+        location : str
+            Observatory key in ``observatory_locations``
+        boundary : astropy.units.Quantity
+            Expected azimuth crossing (``0 * u.deg`` or ``180 * u.deg``), supplied as
+            scenario metadata; not used directly by the assertions.
+        first_side : str
+            Expected side before transit, either ``"east"`` or ``"west"``.
+        start_offset : int
+            Observation start time relative to ``TRANSIT``, in seconds.
+        stop_offset : int
+            Observation stop time relative to ``TRANSIT``, in seconds.
+        make_observation : callable
+            Pytest fixture providing a factory for in-memory fixed-sky
+            tracking observations with absolute start and stop times.
+        observatory_locations : dict[str, astropy.coordinates.EarthLocation]
+            Pytest fixture mapping observatory keys to Earth locations.
+        """
         observation = make_observation(
             ra, dec, observatory_locations[location],
             self.TRANSIT + start_offset * u.s,
@@ -101,6 +130,30 @@ class TestSplitObservationsAzimuth:
         self, ra, dec, location, start_offset, stop_offset, side,
         make_observation, observatory_locations,
     ):
+        """Check an observation on one side of transit stay intact in its east or west group.
+
+        Parameters
+        ----------
+        ra : float
+            ICRS right ascension of the fixed tracking target, in degrees.
+        dec : float
+            ICRS declination of the fixed tracking target, in degrees.
+        location : str
+            Observatory key in ``observatory_locations``: ``"ctao_north"``
+            or ``"hess"``.
+        start_offset : int
+            Observation start time relative to ``TRANSIT``, in seconds.
+        stop_offset : int
+            Observation stop time relative to ``TRANSIT``, in seconds.
+        side : str
+            Expected group for the entire observation, either ``"east"``
+            or ``"west"``.
+        make_observation : callable
+            Pytest fixture providing a factory for in-memory fixed-sky
+            tracking observations with absolute start and stop times.
+        observatory_locations : dict[str, astropy.coordinates.EarthLocation]
+            Pytest fixture mapping observatory keys to Earth locations.
+        """
         observation = make_observation(
             ra, dec, observatory_locations[location],
             self.TRANSIT + start_offset * u.s,
