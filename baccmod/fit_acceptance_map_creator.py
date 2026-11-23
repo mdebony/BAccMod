@@ -31,7 +31,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
 
     def __init__(
         self,
-        energy_axis: MapAxis,
+        energy_axis_out: MapAxis,
         offset_axis: MapAxis,
         model_to_fit: FittableModel = Gaussian2D(),
         list_name_normalisation_parameter: List[str] = ['amplitude'],
@@ -58,7 +58,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         """
 
         # Call the “stack”‐only constructor in Grid3D, to set up geometry, offset axes, etc.
-        super().__init__(energy_axis, offset_axis, **kwargs)
+        super().__init__(energy_axis_out, offset_axis, **kwargs)
 
         self.sq_rel_residuals = {"mean": [], "std": []}
         self.model_to_fit = model_to_fit
@@ -179,7 +179,7 @@ class FitAcceptanceMapCreator(Grid3DAcceptanceMapCreator):
         data_background = self._interpolate_bkg_to_energy_axis(data_background)
 
         # 6) instantiate Background3D
-        acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
+        acceptance_map = Background3D(axes=[self.energy_axis_out, extended_offset_axis_x, extended_offset_axis_y],
                                       data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
                                       fov_alignment=FoVAlignment.ALTAZ)
         return acceptance_map

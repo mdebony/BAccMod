@@ -45,13 +45,13 @@ class BaseAcceptanceMapCreator(ABC):
     erfa_astrom_interpolation_interval = 1000.*u.s
 
     def __init__(self,
-                 energy_axis: MapAxis,
+                 energy_axis_out: MapAxis,
                  max_offset: u.Quantity,
                  spatial_resolution: u.Quantity,
-                 energy_axis_computation: MapAxis = None,
+                 energy_axis_base: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
-                 dynamic_energy_axis: bool = False,
-                 dynamic_energy_axis_target_statistics: int = 500,
+                 use_dynamic_energy_axis: bool = False,
+                 dynamic_energy_axis_target_statistics: int = 50,
                  dynamic_energy_axis_maximum_wideness_bin: float = 0.5,
                  dynamic_energy_axis_merge_zeros_low_energy: bool = False,
                  dynamic_energy_axis_merge_zeros_high_energy: bool = False,
@@ -70,24 +70,27 @@ class BaseAcceptanceMapCreator(ABC):
                  interpolation_cleaning_energy_relative_threshold: float = 1e-4,
                  interpolation_cleaning_spatial_relative_threshold: float = 1e-2) -> None:
         """
-        Create the class for calculating radial acceptance model.
+        Create the class for calculating background models.
 
         Parameters
         ----------
-        energy_axis : gammapy.maps.geom.MapAxis
+        energy_axis_out : gammapy.maps.geom.MapAxis
             The energy axis for the acceptance model
         max_offset : astropy.units.Quantity
             The offset corresponding to the edge of the model
         spatial_resolution : astropy.units.Quantity
             The spatial resolution of the finely binned map used for computation
-        energy_axis_computation : gammapy.maps.geom.MapAxis
-            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
+        energy_axis_base : gammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, or as starting point for the dynamic axis creation.
+            The model will then be reinterpolated on energy_axis_out. If None, energy_axis_out will be used
         exclude_regions : list of regions.SkyRegion, optional
             Regions with known or putative gamma-ray emission, will be excluded from the calculation of the acceptance map
-        dynamic_energy_axis: bool
-            if True, the energy axis will for computation will be determined independently for each model, the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
+        use_dynamic_energy_axis: bool
+            if True, the energy axis will for computation will be determined independently for each model,
+            the algorithm will use the energy_axis_computation and grouped bin in order to reach the target statisctics
         dynamic_energy_axis_target_statistics: int
-            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and therefore doesn't guaranty is is meet in every bin
+            the target statistics per spatial and energy bin, for spatial, it is computed based on an average and
+            therefore doesn't guaranty is is meet in every bin
         dynamic_energy_axis_maximum_wideness_bin: float
             energy bin will not be merged if the resulting bin will be wider (in logarithmic space) than this value
         dynamic_energy_axis_merge_zeros_low_energy: bool
@@ -132,17 +135,17 @@ class BaseAcceptanceMapCreator(ABC):
             exclude_regions = []
 
         # Store base parameter
-        self.energy_axis = energy_axis
+        self.energy_axis_out = energy_axis_out
         self.max_offset = max_offset
         self.exclude_regions = exclude_regions
 
         # Store energy axis computation information
-        if energy_axis_computation is None:
-            self.base_energy_axis_computation = self.energy_axis
+        if energy_axis_base is None:
+            self.energy_axis_base = self.energy_axis_out
         else:
-            self.base_energy_axis_computation = energy_axis_computation
-        self._energy_axis_computation = None
-        self.dynamic_energy_axis = dynamic_energy_axis
+            self.energy_axis_base = energy_axis_base
+        self._dynamic_energy_axis = None
+        self.use_dynamic_energy_axis = use_dynamic_energy_axis
         self.dynamic_energy_axis_target_statistics = dynamic_energy_axis_target_statistics
         self.dynamic_energy_axis_maximum_wideness_bin = dynamic_energy_axis_maximum_wideness_bin
         self.dynamic_energy_axis_merge_zeros_low_energy = dynamic_energy_axis_merge_zeros_low_energy
@@ -186,10 +189,10 @@ class BaseAcceptanceMapCreator(ABC):
 
     @property
     def energy_axis_computation(self):
-        if self.dynamic_energy_axis:
-            return self._energy_axis_computation
+        if self.use_dynamic_energy_axis:
+            return self._energy_axis_dynamic
         else:
-            return self.base_energy_axis_computation
+            return self.energy_axis_base
 
     @abstractmethod
     def create_model(self, observations: Observations) -> BackgroundIRF:
@@ -601,7 +604,7 @@ class BaseAcceptanceMapCreator(ABC):
         # Relative numerical tolerance for the energy bin width limit
         r_tol = 1 + 1e-7
 
-        edges_energy_axis = self.base_energy_axis_computation.edges
+        edges_energy_axis = self.energy_axis_base.edges
 
         cumsumdata = np.cumsum(data)/nb_spatial_bin
         rev_cumsumdata = np.cumsum(data[::-1])[::-1]/nb_spatial_bin
@@ -646,10 +649,10 @@ class BaseAcceptanceMapCreator(ABC):
         if self.dynamic_energy_axis_merge_zeros_high_energy and len(zeros_highE)>0:
             zeros_highE = np.array([i0], dtype=int)
         indexes_edges=np.sort(np.concatenate([zeros_highE, indexes_edges, zeros_lowE], dtype=int))
-        self._energy_axis_computation = MapAxis.from_energy_edges(
+        self._energy_axis_dynamic = MapAxis.from_energy_edges(
             edges_energy_axis[np.array(indexes_edges, dtype=int)], name='energy')
         logger.log(MOREINFO,'Dynamic energy binning : %s',
-                   np.array_str(np.round(self._energy_axis_computation.edges, 3)))
+                   np.array_str(np.round(self._energy_axis_dynamic.edges, 3)))
         logger.log(MOREINFO,'Number of bin limited by the maximum bin wideness : %d',  maximum_wideness_hit)
         logger.debug('Number of counts per spatial bin in each energy bin:\n%s', np.array_str(
             np.abs(np.append(np.diff(rev_cumsumdata[np.array(indexes_edges[:-1], dtype=int)]),
@@ -1138,8 +1141,8 @@ class BaseAcceptanceMapCreator(ABC):
         """
 
         # Return the provided bkg data if energy axis are matching
-        if self.energy_axis_computation.nbin == self.energy_axis.nbin and np.all(
-                self.energy_axis_computation.edges == self.energy_axis.edges):
+        if self.energy_axis_computation.nbin == self.energy_axis_out.nbin and np.all(
+                self.energy_axis_computation.edges == self.energy_axis_out.edges):
             logger.info('Identical computation energy axis and model energy axis, no interpolation required')
             return data_bkg
 
@@ -1155,7 +1158,7 @@ class BaseAcceptanceMapCreator(ABC):
                                y=raw_log_data,
                                axis=0,
                                fill_value='extrapolate')
-        raw_log_final_data_bkg = interp_func(np.log10(self.energy_axis.center.to_value(u.TeV)))
+        raw_log_final_data_bkg = interp_func(np.log10(self.energy_axis_out.center.to_value(u.TeV)))
         raw_final_data_bkg = 10**raw_log_final_data_bkg
         mask_zero_final = raw_log_final_data_bkg < (np.log10(min_value) - max(2, np.log10(max_value)-np.log10(min_value))) # All values that are smaller than 2 orders of magnitude than the minimum non zero input data (or the difference in order of magnitude between minimum and maximum) will be considered as zero
         raw_final_data_bkg[mask_zero_final] = 0.

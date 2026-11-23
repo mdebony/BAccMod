@@ -24,10 +24,10 @@ from .base_acceptance_map_creator import BaseAcceptanceMapCreator
 class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
     def __init__(self,
-                 energy_axis: MapAxis,
+                 energy_axis_out: MapAxis,
                  offset_axis: MapAxis,
                  oversample_map: int = 10,
-                 energy_axis_computation: MapAxis = None,
+                 energy_axis_base: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
                  **kwargs) -> None:
         """
@@ -36,14 +36,15 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         Parameters
         ----------
-        energy_axis : MapAxis
+        energy_axis_out : MapAxis
             The energy axis for the acceptance model
         offset_axis : MapAxis
             The offset axis for the acceptance model
         oversample_map : int, optional
             Oversample in number of pixel of the spatial axis used for the calculation
-        energy_axis_computation : gammapy.maps.geom.MapAxis
-            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
+        energy_axis_base :gammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, or as starting point for the dynamic axis creation.
+            The model will then be reinterpolated on energy_axis_out. If None, energy_axis_out will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
         **kwargs
@@ -58,10 +59,10 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
         max_offset = np.max(self.offset_axis.edges)
 
         # Initiate upper instance
-        super().__init__(energy_axis=energy_axis,
+        super().__init__(energy_axis_out=energy_axis_out,
                          max_offset=max_offset,
                          spatial_resolution=spatial_resolution,
-                         energy_axis_computation=energy_axis_computation,
+                         energy_axis_base=energy_axis_base,
                          exclude_regions=exclude_regions,
                          **kwargs)
 
@@ -105,12 +106,12 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 value /= livetime
                 data_background[j, i] = value
 
-        acceptance_map = Background2D(axes=[self.energy_axis, self.offset_axis],
+        acceptance_map = Background2D(axes=[self.energy_axis_out, self.offset_axis],
                                       data=self._interpolate_bkg_to_energy_axis(data_background))
 
         return acceptance_map
 
-    def _create_base_computation_map(self, observations: Observations) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity, MapAxis]:
+    def _create_base_computation_map(self, observations: Observations) -> Tuple[np.ndarray, WcsNDMap, WcsNDMap, u.Quantity]:
         """
         From a list of observations return a stacked finely binned counts and exposure map in camera frame to compute a
         model
@@ -130,15 +131,13 @@ class RadialAcceptanceMapCreator(BaseAcceptanceMapCreator):
             The exposure map without correction for exclusion regions
         livetime : astropy.unit.Quantity
             The total exposure time for the model
-        energy_axis : gammapy.maps.MapAxis
-            The energy axis used for the computation
         """
 
-        if self.dynamic_energy_axis:
-            data_energy_distribution = np.zeros(self.base_energy_axis_computation.nbin, dtype=np.int64)
+        if self.use_dynamic_energy_axis:
+            data_energy_distribution = np.zeros(self.energy_axis_base.nbin, dtype=np.int64)
             for obs in observations:
                 mask_event = obs.events.offset <= self.max_offset
-                distrib, _ = np.histogram(obs.events.energy[mask_event], self.base_energy_axis_computation.edges)
+                distrib, _ = np.histogram(obs.events.energy[mask_event], self.energy_axis_base.edges)
                 data_energy_distribution += distrib
             self._compute_dynamic_energy_axis(data_energy_distribution, self.offset_axis.nbin)
 
