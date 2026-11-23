@@ -15,7 +15,7 @@ Dependencies :
 - scipy
 - astropy
 - iminuit >= 2.0
-- gammapy >= 1.1
+- gammapy >= 1.1, < 2.3
 - regions >= 0.7
 
 # Example of use

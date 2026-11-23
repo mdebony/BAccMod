@@ -17,7 +17,7 @@ setup(
     long_description_content_type='text/markdown',
     python_requires='>=3.11',
     install_requires=[
-        'gammapy>=1.1,<2.2',
+        'gammapy>=1.1,<2.3',
         'numpy<2.5',
         'scipy<1.18',
         'iminuit>=2.0,<3.0',

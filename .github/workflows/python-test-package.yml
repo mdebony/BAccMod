@@ -20,6 +20,15 @@ jobs:
       matrix:
         gammapy-version: ["1.1", "1.2", "1.3", "2.0", "2.1"]
         python-version: ["3.11", "3.12", "3.13"]
+        include:
+          # Gammapy 2.2 requires Python >=3.12. Use the latest tagged data
+          # release until the 2.2 data tag is available.
+          - gammapy-version: "2.2rc1"
+            python-version: "3.12"
+            gammapy-data-version: "2.1"
+          - gammapy-version: "2.2rc1"
+            python-version: "3.13"
+            gammapy-data-version: "2.1"
         exclude:
           - gammapy-version: "1.1"
             python-version: "3.13"
@@ -54,7 +63,7 @@ jobs:
           python -m pip install --upgrade setuptools
 
           python -m pip install gammapy==${{ matrix.gammapy-version }}
-          git clone --depth 1 --branch v${{ matrix.gammapy-version }} https://github.com/gammapy/gammapy-data
+          git clone --depth 1 --branch v${{ matrix.gammapy-data-version || matrix.gammapy-version }} https://github.com/gammapy/gammapy-data
           export GAMMAPY_DATA=$PWD/gammapy-data/
           python -m pip install .
           python -m pip check
