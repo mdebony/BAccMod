@@ -24,7 +24,7 @@ class TestBaseAcceptanceClass(unittest.TestCase):
 
     def test_compute_dynamic_energy_axis(self):
         """ Test `BaseAcceptanceMapCreator._compute_dynamic_energy_axis` """
-        errors_msg=[]
+        errors_msg=''
         errors=[]
 
         out_energy_axis = MapAxis.from_energy_bounds(100.*u.GeV, 10.*u.TeV, nbin=15, per_decade=False, name='energy')
@@ -47,8 +47,11 @@ class TestBaseAcceptanceClass(unittest.TestCase):
             assert len(bamc.energy_axis_computation.edges) == 10
             assert np.all(bamc.energy_axis_computation.edges == out_energy_axis.edges[[0,1,2,4,6,11,12,13,14,15]])
         except Exception as e:
-            errors_msg.append('Error in the simple usage without maximum bin wideness.\n')
+            e.add_note('Error in the  usage without maximum bin wideness.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       +str(out_energy_axis.edges[[0,1,2,4,6,11,12,13,14,15]]))
             errors.append(e)
+            errors_msg+=f'{len(errors)}: Error in the usage without maximum bin wideness.\n'
 
         bamc.dynamic_energy_axis_maximum_wideness_bin = 0.5 # default maximum bin wideness criteria: limiting once
         # we have 15 bin for 2 decades so this corresponds to a limit of 3.75 bins merged at most
@@ -61,8 +64,12 @@ class TestBaseAcceptanceClass(unittest.TestCase):
             assert len(bamc.energy_axis_computation.edges) == 11
             assert np.all(bamc.energy_axis_computation.edges == out_energy_axis.edges[[0,1,2,4,5,8,11,12,13,14,15]])
         except Exception as e:
-            errors_msg.append('Error in the simple usage with maximum bin wideness.\n')
+            e.add_note('Error in the usage with maximum bin wideness.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       +str(out_energy_axis.edges[[0,1,2,4,5,8,11,12,13,14,15]]))
             errors.append(e)
+            errors_msg+=f'{len(errors)}: Error in the usage with maximum bin wideness.\n'
 
         if len(errors)>0:
-            raise ExceptionGroup('Errors in the test of BaseAcceptanceMapCreator._compute_dynamic_energy_axis',errors)
+            raise ExceptionGroup('Errors in the test of BaseAcceptanceMapCreator._compute_dynamic_energy_axis:\n' +
+                                 errors_msg, errors)
