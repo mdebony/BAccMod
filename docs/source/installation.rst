@@ -9,7 +9,7 @@ BAccMod is currently available through pip. It can be installed with this comman
 
 Current dependencies are:
 
-* gammapy >= 1.1
+* gammapy >= 1.1, < 2.3
 * numpy
 * scipy
 * astropy
