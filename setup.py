@@ -15,6 +15,7 @@ setup(
     url='https://github.com/mdebony/BAccMod',
     long_description=long_description,
     long_description_content_type='text/markdown',
+    python_requires='>=3.11',
     install_requires=[
         'gammapy>=1.1,<2.2',
         'numpy<2.5',
