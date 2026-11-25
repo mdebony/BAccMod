@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
     def __init__(self,
-                 energy_axis: MapAxis,
+                 energy_axis_out: MapAxis,
                  offset_axis: MapAxis,
                  oversample_map: int = 10,
-                 energy_axis_computation: MapAxis = None,
+                 energy_axis_base: MapAxis = None,
                  exclude_regions: Optional[List[SkyRegion]] = None,
                  **kwargs) -> None:
         """
@@ -40,14 +40,15 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         Parameters
         ----------
-        energy_axis : MapAxis
+        energy_axis_out : MapAxis
             The energy axis for the acceptance model
         offset_axis : MapAxis
             The offset axis for the acceptance model
         oversample_map : int, optional
             Oversample in number of pixel of the spatial axis used for the calculation
-        energy_axis_computation : gammapy.maps.geom.MapAxis
-            The energy axis used for computation of the models, the model will then be reinterpolated on energy axis, if None, energy_axis will be used
+        energy_axis_base : gammapy.maps.geom.MapAxisgammapy.maps.geom.MapAxis
+            The energy axis used for computation of the models, or as starting point for the dynamic axis creation.
+            The model will then be reinterpolated on energy_axis_out. If None, energy_axis_out will be used
         exclude_regions : list of regions.SkyRegion, optional
             Region with known or putative gamma-ray emission, will be excluded of the calculation of the acceptance map
         **kwargs
@@ -71,13 +72,13 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
 
         offset_edges = offset_axis.edges
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
-        self.map_bins = (energy_axis.edges, offset_bins, offset_bins)
+        self.map_bins = (energy_axis_out.edges, offset_bins, offset_bins)
 
         # Initiate upper instance
-        super().__init__(energy_axis=energy_axis,
+        super().__init__(energy_axis_out=energy_axis_out,
                          max_offset=max_offset,
                          spatial_resolution=spatial_resolution,
-                         energy_axis_computation=energy_axis_computation,
+                         energy_axis_base=energy_axis_base,
                          exclude_regions=exclude_regions,
                          **kwargs)
 
@@ -109,7 +110,7 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         """
 
         # Compute base data
-        count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation = self._create_base_computation_map(
+        count_background, exp_map_background, exp_map_background_total, livetime = self._create_base_computation_map(
             observations)
 
         # Downsample map to background model resolution
@@ -125,12 +126,12 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                                                exp_map_background_downsample.data)
         data_background = (corrected_counts /
                            solid_angle[np.newaxis, :, :] /
-                           energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /
+                           self.energy_axis_computation.bin_width[:, np.newaxis, np.newaxis] /
                            livetime)
 
-        data_background = self._interpolate_bkg_to_energy_axis(data_background, energy_axis_computation)
+        data_background = self._interpolate_bkg_to_energy_axis(data_background)
 
-        acceptance_map = Background3D(axes=[self.energy_axis, extended_offset_axis_x, extended_offset_axis_y],
+        acceptance_map = Background3D(axes=[self.energy_axis_out, extended_offset_axis_x, extended_offset_axis_y],
                                       data=data_background.to(u.Unit('s-1 MeV-1 sr-1')),
                                       fov_alignment=FoVAlignment.ALTAZ)
 
@@ -163,21 +164,18 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
         offset_edges = self.offset_axis.edges
         offset_bins = np.round(np.concatenate((-np.flip(offset_edges), offset_edges[1:]), axis=None), 3)
 
-        energy_axis_computation = self.energy_axis_computation.copy()
-        if self.dynamic_energy_axis:
-            data_energy_distribution = np.zeros(self.energy_axis_computation.nbin, dtype=np.int64)
+        if self.use_dynamic_energy_axis:
+            data_energy_distribution = np.zeros(self.energy_axis_base.nbin, dtype=np.int64)
             for obs in observations:
                 events_camera_frame = self._get_events_in_camera_frame(obs)
                 mask_event = np.logical_and(np.abs(events_camera_frame.lon) <= self.max_offset,
                                             np.abs(events_camera_frame.lat) <= self.max_offset)
-                distrib, _ = np.histogram(obs.events.energy[mask_event], energy_axis_computation.edges)
+                distrib, _ = np.histogram(obs.events.energy[mask_event], self.energy_axis_base.edges)
                 data_energy_distribution += distrib
-            energy_axis_computation = self._compute_dynamic_energy_axis(energy_axis_computation,
-                                                                        data_energy_distribution,
-                                                                        len(offset_bins)**2)
+            self._compute_dynamic_energy_axis(data_energy_distribution, len(offset_bins)**2)
 
-        map_bins = (energy_axis_computation.edges, offset_bins, offset_bins)
-        geom = self._get_geom(energy_axis_computation)
+        map_bins = (self.energy_axis_computation.edges, offset_bins, offset_bins)
+        geom = self._get_geom(self.energy_axis_computation)
         count_background = np.zeros((len(map_bins[0]) - 1,
                                      len(map_bins[1]) - 1,
                                      len(map_bins[2]) - 1))
@@ -243,4 +241,4 @@ class Grid3DAcceptanceMapCreator(BaseAcceptanceMapCreator):
                 exp_map_background_total.data += exp_map_obs_total.counts.data
                 livetime += obs.observation_live_time_duration
 
-        return count_background, exp_map_background, exp_map_background_total, livetime, energy_axis_computation
+        return count_background, exp_map_background, exp_map_background_total, livetime

@@ -8,9 +8,11 @@
 # ---------------------------------------------------------------------
 
 import astropy.units as u
+import numpy as np
 import pytest
 from astropy.time import Time
 from gammapy.data import Observations
+from gammapy.maps import MapAxis
 
 from baccmod import BaseAcceptanceMapCreator
 
@@ -169,3 +171,203 @@ class TestSplitObservationsAzimuth:
         assert len(actual) == 1 and actual[0] is observation
         assert len(other) == 0
         assert split == {}
+
+class DummyBaseAcceptanceMapCreator(BaseAcceptanceMapCreator):
+    """ Dummy class to test base functionnalities of BaseAcceptanceMapCreator. """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _create_base_computation_map(self):
+        return None
+
+    def create_model(self):
+        return None
+
+class TestDynamicEnergyAxis():
+
+    numerical_r_tolerance = 0
+    numerical_a_tolerance = 1e-8
+
+    out_energy_axis = MapAxis.from_energy_bounds(100.*u.GeV, 10.*u.TeV, nbin=15, per_decade=False, name='energy')
+
+    bamc = DummyBaseAcceptanceMapCreator(energy_axis_out=out_energy_axis,
+                                         max_offset=1*u.deg,
+                                         spatial_resolution=0.5*u.deg,
+                                         use_dynamic_energy_axis=True)
+
+    def test_simple_calls(self):
+        """ Test `BaseAcceptanceMapCreator._compute_dynamic_energy_axis` in a simple case with known outputs """
+        errors_msg=''
+        errors=[]
+
+        bamc=self.bamc
+
+        # basic run with known output
+        data=[0,0,2,20,15,4,6,3,2,1,1,0,0,0,0] # counts per energy bin
+        nb_spatial_bin = 4
+        bamc.dynamic_energy_axis_target_statistics = 3
+        bamc.dynamic_energy_axis_maximum_wideness_bin = 2 # remove the maximum bin wideness criteria
+        # expected output : more than 3X4=12 counts per energy bin which would be [0,0,22,19,13,0,0,0,0] counts
+        # Number of merged bins : [0,0,2,2,4,0,0,0,0]
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+
+        try:
+            assert len(bamc.energy_axis_computation.edges) == 10
+            assert np.all(np.isclose(bamc.energy_axis_computation.edges,
+                                     bamc.energy_axis_base.edges[[0,1,2,4,6,11,12,13,14,15]],
+                                     rtol=self.numerical_r_tolerance, atol=self.numerical_a_tolerance))
+        except AssertionError as e:
+            e.add_note('Error in the usage without maximum bin wideness.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges[[0,1,2,4,6,11,12,13,14,15]]))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Error in the usage without maximum bin wideness.\n'
+
+        bamc.dynamic_energy_axis_maximum_wideness_bin = 0.5 # default maximum bin wideness criteria: limiting once
+        # we have 15 bin for 2 decades so this corresponds to a limit of 3.75 bins merged at most
+        # expected output : [0,0,22,15,13,4,0,0,0,0] counts per energy bins
+        # Number of merged bins : [0,0,2,1,3,3,0,0,0,0]
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+
+
+        try:
+            assert len(bamc.energy_axis_computation.edges) == 11
+            assert np.all(np.isclose(bamc.energy_axis_computation.edges,
+                                     bamc.energy_axis_base.edges[[0,1,2,4,5,8,11,12,13,14,15]],
+                                     rtol=self.numerical_r_tolerance, atol=self.numerical_a_tolerance))
+        except AssertionError as e:
+            e.add_note('Error in the usage with maximum bin wideness.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       +str(bamc.energy_axis_base.edges[[0,1,2,4,5,8,11,12,13,14,15]]))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Error in the usage with maximum bin wideness.\n'
+
+        if len(errors)>0:
+            raise ExceptionGroup('Errors in the test of BaseAcceptanceMapCreator._compute_dynamic_energy_axis:\n' +
+                                 errors_msg, errors)
+    def test_merging_zeros(self):
+        """ Test the dynamic_energy_axis_merge_zeros_high/low_energy options of the `BaseAcceptanceMapCreator` """
+        errors_msg=''
+        errors=[]
+
+        bamc=self.bamc
+
+        # 1) Test all merging combination when there are zeros at the edges
+
+        data=[0,0,1,1,1,1,1,1,1,1,1,0,0,0,0] # counts per energy bin
+        nb_spatial_bin = 1
+        bamc.dynamic_energy_axis_target_statistics = 1
+        bamc.dynamic_energy_axis_maximum_wideness_bin = 2 # remove the maximum bin wideness criteria
+        # All non-empty bins will be kept. Handling of the empty bins will depend on the
+        # dynamic_energy_axis_merge_zeros_high/low_energy options.
+        # Both are False by default so all bins should be kept
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges)
+            assert np.all(bamc.energy_axis_computation.edges == bamc.energy_axis_base.edges)
+        except AssertionError as e:
+            e.add_note('Error when not merging zeros.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Multi zeros case, error when not merging.\n'
+
+        bamc.dynamic_energy_axis_merge_zeros_high_energy = True # Now merge the 4 empty bins at high energy
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges) - 3
+            assert np.all(np.isclose(bamc.energy_axis_computation.edges,
+                                     bamc.energy_axis_base.edges[[0,1,2,3,4,5,6,7,8,9,10,11,15]],
+                                     rtol=self.numerical_r_tolerance, atol=self.numerical_a_tolerance))
+        except AssertionError as e:
+            e.add_note('Error when merging zeros at high energy.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges[[0,1,2,3,4,5,6,7,8,9,10,11,15]]))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Multi zeros case, error when merging at high energy.\n'
+
+        bamc.dynamic_energy_axis_merge_zeros_low_energy = True # Now merge the 4/2 empty bins at high/low energy
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges) - 3 - 1
+            assert np.all(np.isclose(bamc.energy_axis_computation.edges,
+                                     bamc.energy_axis_base.edges[[0,2,3,4,5,6,7,8,9,10,11,15]],
+                                     rtol=self.numerical_r_tolerance, atol=self.numerical_a_tolerance))
+        except AssertionError as e:
+            e.add_note('Error when merging zeros at low and high energy.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges[[0,2,3,4,5,6,7,8,9,10,11,15]]))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Multi zeros case, error when merging at low and high energy.\n'
+
+        bamc.dynamic_energy_axis_merge_zeros_high_energy = False # Now merge the 2 empty bins at low energy
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges) - 1
+            assert np.all(np.isclose(bamc.energy_axis_computation.edges,
+                                     bamc.energy_axis_base.edges[[0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]],
+                                     rtol=self.numerical_r_tolerance, atol=self.numerical_a_tolerance))
+        except AssertionError as e:
+            e.add_note('Error when merging zeros at low energy.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges[[0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]]))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: Multi zeros case, error when merging at low energy.\n'
+
+        # 2) Test merging when there are no zeros at the edges
+        data=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] # counts per energy bin
+        bamc.dynamic_energy_axis_merge_zeros_low_energy = False
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges)
+        except AssertionError as e:
+            e.add_note('Error when not merging zeros.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: No zero case, error when not merging zeros.\n'
+
+        bamc.dynamic_energy_axis_merge_zeros_low_energy = True
+        bamc.dynamic_energy_axis_merge_zeros_high_energy = True
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges)
+        except AssertionError as e:
+            e.add_note('Error when merging zeros.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: No zero case, error when merging zeros.\n'
+
+
+        # 3) Test merging when there is exactly 1 zero at the edges
+        data=[0,1,1,1,1,1,1,1,1,1,1,1,1,1,0] # counts per energy bin
+        bamc.dynamic_energy_axis_merge_zeros_low_energy = False
+        bamc.dynamic_energy_axis_merge_zeros_high_energy = False
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges)
+        except AssertionError as e:
+            e.add_note('Error when not merging zeros.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: One zero case, error when not merging zeros.\n'
+
+        bamc.dynamic_energy_axis_merge_zeros_low_energy = True
+        bamc.dynamic_energy_axis_merge_zeros_high_energy = True
+        bamc._compute_dynamic_energy_axis(data, nb_spatial_bin)
+        try:
+            assert len(bamc.energy_axis_computation.edges) == len(bamc.energy_axis_base.edges)
+        except AssertionError as e:
+            e.add_note('Error when merging zeros.\n Output: '
+                       + str(bamc.energy_axis_computation.edges) + '\nExpected: '
+                       + str(bamc.energy_axis_base.edges))
+            errors.append(e)
+            errors_msg+=f'{len(errors)}: One zero case, error when merging zeros.\n'
+
+
+        if len(errors)>0:
+            raise ExceptionGroup('Errors in the test of dynamic_energy_axis_merge_zeros_high/low_energy:\n' +
+                                 errors_msg, errors)

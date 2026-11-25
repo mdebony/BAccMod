@@ -47,9 +47,10 @@ class TestIntegrationClass:
                                                                            lat=-23.271584051253615 * u.deg,
                                                                            height=1800. * u.m)
 
-    energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=5, per_decade=True, name='energy')
-    energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) + list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
-    energy_axis_computation_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
+    energy_axis_out = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=5, per_decade=True, name='energy')
+    energy_axis_computation = MapAxis.from_energy_edges((list(np.geomspace(0.1, 1, 6)) +
+                                                         list(np.geomspace(1, 10, 3)[1:])) * u.TeV, name='energy')
+    energy_axis_dense = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=20, per_decade=True, name='energy')
     offset_axis = MapAxis.from_bounds(0. * u.deg, 2. * u.deg, nbin=6, name='offset')
 
     fast_energy_axis = MapAxis.from_energy_bounds(100. * u.GeV, 10. * u.TeV, nbin=2, name='energy')
@@ -69,7 +70,7 @@ class TestIntegrationClass:
                 f'Maximum relative error : {np.nanmax(relative_error)}, fraction above threshold {self.relative_tolerance} : {np.sum(relative_error > self.relative_tolerance) / relative_error.size}, fraction above 1e-3 : {np.sum(relative_error > 1e-3) / relative_error.size}, fraction above 1e-2 : {np.sum(relative_error > 1e-2) / relative_error.size}, fraction above 1e-1 : {np.sum(relative_error > 1e-1) / relative_error.size}')
 
     def test_integration_3D(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -86,14 +87,14 @@ class TestIntegrationClass:
         def powerlaw(e, amplitude=1.0, x_0 = 1.0, alpha=1.0):
             return PowerLaw1D.evaluate(e, amplitude, x_0, alpha)
         pwl_model_custom = CustomModels(powerlaw)
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155,
                                             model_to_fit=pwl_model,
                                             list_name_normalisation_parameter=['amplitude',])
         background_model = bkg_maker.create_model(observations=self.obs_collection_pks_2155)
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155,
@@ -108,7 +109,7 @@ class TestIntegrationClass:
             return x1 + x2 + x3 + x4
         model = CustomModels(four_input_fnc)
 
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.fast_energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.fast_energy_axis,
                                             offset_axis=self.fast_offset_axis,
                                             oversample_map=1,
                                             exclude_regions=self.exclude_region_PKS_2155,
@@ -121,7 +122,7 @@ class TestIntegrationClass:
     def test_integration_energy_fit(self):
         model = PowerLaw1D()
         model.amplitude.bounds = [0.5, None]
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155,
@@ -144,7 +145,7 @@ class TestIntegrationClass:
         model.y_stddev.bounds = [0.01, 5]
         model.y_stddev.tied = lambda model: model.x_stddev.value
         model.theta.fixed = True
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155,
@@ -171,7 +172,7 @@ class TestIntegrationClass:
         model.y_stddev.bounds = [0.01, 5]
         model.y_stddev.tied = lambda model: model.x_stddev.value
         model.theta.fixed = True
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155,
@@ -187,7 +188,7 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -200,8 +201,8 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_3D_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation,
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                               energy_axis_base=self.energy_axis_computation,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -214,8 +215,8 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_irregular_computation_axis(self):
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                            energy_axis_computation=self.energy_axis_computation,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                            energy_axis_base=self.energy_axis_computation,
                                             offset_axis=self.offset_axis,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155)
@@ -228,8 +229,8 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D_irregular_computation_axis(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                               energy_axis_base=self.energy_axis_computation,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -244,10 +245,10 @@ class TestIntegrationClass:
 
 
     def test_integration_3D_dynamic_irregular_computation_axis(self):
-        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation_dense,
+        bkg_maker = Grid3DAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                               energy_axis_base=self.energy_axis_dense,
                                                offset_axis=self.offset_axis,
-                                               dynamic_energy_axis=True,
+                                               use_dynamic_energy_axis=True,
                                                dynamic_energy_axis_target_statistics=100,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -260,10 +261,10 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_spatial_fit_dynamic_irregular_computation_axis(self):
-        bkg_maker = FitAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                            energy_axis_computation=self.energy_axis_computation_dense,
+        bkg_maker = FitAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                            energy_axis_base=self.energy_axis_dense,
                                             offset_axis=self.offset_axis,
-                                            dynamic_energy_axis=True,
+                                            use_dynamic_energy_axis=True,
                                             dynamic_energy_axis_target_statistics=100,
                                             oversample_map=5,
                                             exclude_regions=self.exclude_region_PKS_2155)
@@ -276,10 +277,10 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance_fit_method))
 
     def test_integration_2D_dynamic_irregular_computation_axis(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation_dense,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                               energy_axis_base=self.energy_axis_dense,
                                                offset_axis=self.offset_axis,
-                                               dynamic_energy_axis=True,
+                                               use_dynamic_energy_axis=True,
                                                dynamic_energy_axis_target_statistics=500,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -292,7 +293,7 @@ class TestIntegrationClass:
                                  rtol=self.relative_tolerance))
 
     def test_integration_zenith_binned_model(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -312,7 +313,7 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_model(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
@@ -332,7 +333,7 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_log_model(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
@@ -353,7 +354,7 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_log_cleaning_model(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
@@ -375,7 +376,7 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_zenith_interpolated_model_mini_irf_and_run_splitting(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
@@ -397,8 +398,8 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_irregular_computation_axis_zenith_interpolated_model_mini_irf_and_run_splitting(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
-                                               energy_axis_computation=self.energy_axis_computation,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
+                                               energy_axis_base=self.energy_axis_computation,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155,
@@ -420,7 +421,7 @@ class TestIntegrationClass:
                                      rtol=self.relative_tolerance))
 
     def test_integration_norm_per_run(self):
-        bkg_maker = RadialAcceptanceMapCreator(energy_axis=self.energy_axis,
+        bkg_maker = RadialAcceptanceMapCreator(energy_axis_out=self.energy_axis_out,
                                                offset_axis=self.offset_axis,
                                                oversample_map=5,
                                                exclude_regions=self.exclude_region_PKS_2155)
