@@ -591,13 +591,13 @@ class BaseAcceptanceMapCreator(ABC):
         Parameters
         ----------
         data : np.ndarray
-            the count distribution only binned in energy (using base_energy_axis_computation binning)
+            the count distribution only binned in energy (using self.energy_axis_base binning)
         nb_spatial_bin : int
             the number of spatial bin covering the data_energy_distribution
 
         Updates
         -------
-        self.energy_axis_computation: gammapy.maps.MapAxis
+        self._energy_axis_dynamic: gammapy.maps.MapAxis
             the optimal energy axis
         """
 
